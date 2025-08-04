@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上班摸鱼赚钱计算器 (看板版)</title>
+    <!-- 【细节调整】修改标题 -->
+    <title>上班摸鱼赚钱计算器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,6 +32,15 @@
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
+        }
+        /* 【细节调整】修复input number原生箭头显示问题 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
         }
     </style>
 </head>
@@ -90,6 +100,16 @@
                 <div class="space-y-4 pt-4">
                     <label class="inline-flex items-center cursor-pointer w-full justify-center"><input type="checkbox" id="paid-overtime-toggle" class="sr-only peer"><div class="relative w-11 h-6 bg-gray-600 rounded-full peer peer-focus:ring-4 peer-focus:ring-amber-500/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div><span class="ms-3 text-sm font-medium text-gray-300">加班有额外报酬</span></label>
                     <div id="overtime-multiplier-wrapper" class="hidden"><label for="overtime-multiplier" class="text-sm font-bold text-gray-400 block mb-1">加班倍率</label><input type="number" id="overtime-multiplier" value="1.5" step="0.1" class="w-full max-w-xs mx-auto bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none"></div>
+                    <div class="pt-2 border-t border-gray-700/50">
+                        <label class="text-sm font-bold text-gray-400 block mb-1">手动设定加班时长</label>
+                        <!-- 【细节调整】升级为小时和分钟输入，并修复布局 -->
+                        <div class="flex gap-2 items-center justify-center">
+                            <input type="number" id="manual-overtime-hours" min="0" placeholder="小时" class="w-20 bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none text-center">
+                            <span class="text-gray-400">:</span>
+                            <input type="number" id="manual-overtime-minutes" min="0" max="59" placeholder="分钟" class="w-20 bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none text-center">
+                            <button id="set-overtime-btn" class="bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold py-2 px-4 rounded-md transition-colors flex-shrink-0">设定</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -98,7 +118,6 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start">
                 <div class="md:border-r border-gray-700 md:pr-6"><p class="text-sm text-gray-400">今日净赚 (盈余)</p><p id="net-surplus" class="text-5xl font-black mt-2 surplus-text">¥ 0.00</p></div>
                 <div>
-                    <!-- 【最终优化】使用更具亲和力的文案 -->
                     <p id="reward-title" class="text-sm text-gray-400">打工人的小确幸：</p>
                     <div id="reward-list-container" class="mt-2 text-left p-2 bg-gray-900/50 rounded-lg grid grid-cols-2 gap-x-4 gap-y-1"><p class="text-gray-500 text-center col-span-2">还需努力哦 💪</p></div>
                 </div>
@@ -111,7 +130,6 @@
     </div>
 
     <script>
-    // JavaScript代码无需修改
     document.addEventListener('DOMContentLoaded', () => {
         const dom = {
             moneyEarned: document.getElementById('money-earned'), countdown: document.getElementById('countdown-display'),
@@ -130,6 +148,10 @@
             addExpenseBtn: document.getElementById('add-expense-btn'), paidOvertimeToggle: document.getElementById('paid-overtime-toggle'),
             overtimeMultiplierWrapper: document.getElementById('overtime-multiplier-wrapper'), overtimeMultiplier: document.getElementById('overtime-multiplier'),
             resetDayBtn: document.getElementById('reset-day-btn'),
+            // 【细节调整】更新DOM引用
+            manualOvertimeHours: document.getElementById('manual-overtime-hours'),
+            manualOvertimeMinutes: document.getElementById('manual-overtime-minutes'),
+            setOvertimeBtn: document.getElementById('set-overtime-btn'),
         };
 
         const state = {
@@ -137,9 +159,11 @@
             isMoyuing: false,
             moyuStartTime: 0,
             accumulatedMoyuSeconds: 0,
-            isOvertime: false, 
+            overtimeState: 'disabled',
             overtimeStartTime: 0, 
             accumulatedOvertimeSeconds: 0,
+            offDutyTimeReached: false,
+            overtimeAutoStartedToday: false,
             settings: {
                 startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
                 expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
@@ -153,6 +177,7 @@
             overtimeStart: new Tone.Synth({ oscillator: { type: 'square' } }).toDestination(),
             stop: new Tone.Synth({ oscillator: { type: 'sine' } }).toDestination(),
             rewardUnlock: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.2 } }).toDestination(),
+            offDuty: new Tone.Synth({ oscillator: { type: 'fatsawtooth' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
         };
         const productList = [
             { name: '可乐', unit: '瓶', price: 3, emoji: '🥤' }, { name: '奶茶', unit: '杯', price: 15, emoji: '🧋' }, { name: '午餐', unit: '顿', price: 25, emoji: '🍱' }, { name: '电影票', unit: '张', price: 50, emoji: '🎟️' }, { name: '好书', unit: '本', price: 80, emoji: '📖' }, { name: '新T恤', unit: '件', price: 150, emoji: '👕' }, { name: '机械键盘', unit: '个', price: 400, emoji: '⌨️' }, { name: '降噪耳机', unit: '副', price: 1500, emoji: '🎧' }, { name: '新款手机', unit: '部', price: 6000, emoji: '📱' }, { name: '短途旅行', unit: '次', price: 10000, emoji: '✈️' }
@@ -173,7 +198,9 @@
             let positiveOvertimePay = 0;
             if (settings.isPaidOvertime) {
                 let currentOvertimeSeconds = state.accumulatedOvertimeSeconds;
-                if (state.isOvertime) currentOvertimeSeconds += (Date.now() - state.overtimeStartTime) / 1000;
+                if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
+                    currentOvertimeSeconds += (Date.now() - state.overtimeStartTime) / 1000;
+                }
                 positiveOvertimePay = currentOvertimeSeconds * state.salaryPerSecond * settings.overtimeMultiplier;
             }
             
@@ -188,25 +215,38 @@
             
             updateRewardList(netSurplus);
 
-            if (now < todayEndDate) {
-                if (!dom.overtimeBtn.disabled) {
-                    dom.overtimeBtn.disabled = true;
-                    dom.overtimeBtn.title = '尚未到下班时间';
-                    dom.overtimeBtn.classList.add('cursor-not-allowed', 'opacity-50');
-                }
-                if (!state.isOvertime) {
-                    dom.overtimeDuration.textContent = '00:00:00';
-                    dom.overtimeIncome.textContent = '¥ 0.00';
-                    dom.overtimeIncome.classList.remove('overtime-loss-text');
-                    dom.overtimeIncome.classList.add('overtime-gain-text');
-                }
-            } else {
-                if (dom.overtimeBtn.disabled) {
-                    dom.overtimeBtn.disabled = false;
-                    dom.overtimeBtn.title = '';
-                    dom.overtimeBtn.classList.remove('cursor-not-allowed', 'opacity-50');
-                }
+            if (now >= todayEndDate && !state.offDutyTimeReached) {
+                state.offDutyTimeReached = true;
+                handleAutoOvertimeStart(now, todayEndDate);
+            } else if (now < todayEndDate) {
+                dom.overtimeBtn.disabled = true;
+                dom.overtimeBtn.classList.add('cursor-not-allowed', 'opacity-50');
             }
+        }
+
+        function handleAutoOvertimeStart(now, todayEndDate, isRetroactive = false) {
+            dom.overtimeBtn.disabled = false;
+            dom.overtimeBtn.classList.remove('cursor-not-allowed', 'opacity-50');
+            
+            if (isRetroactive) {
+                const retroactiveSeconds = (now - todayEndDate) / 1000;
+                state.accumulatedOvertimeSeconds = retroactiveSeconds;
+            }
+
+            state.overtimeState = 'auto-running';
+            state.overtimeStartTime = Date.now();
+            if (timers.overtime) clearInterval(timers.overtime);
+            timers.overtime = setInterval(overtimeTick, 1000);
+            // 【细节调整】修改按钮文案
+            dom.overtimeBtn.textContent = '已下班 (点击暂停)';
+            dom.overtimeBtn.classList.add('action-btn-pulse');
+            
+            if (!isRetroactive) {
+                sounds.offDuty.triggerAttackRelease("C5", "8n");
+            }
+            
+            state.overtimeAutoStartedToday = true;
+            saveState();
         }
 
         function moyuTick() {
@@ -218,7 +258,7 @@
 
         function overtimeTick() {
             let totalSeconds = state.accumulatedOvertimeSeconds;
-            if (state.isOvertime) {
+            if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
                 const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
                 totalSeconds += elapsedSeconds;
             }
@@ -257,28 +297,55 @@
         }
 
         function handleOvertimeToggle() {
-            if (this.disabled) {
-                alert('还没到下班时间，别急着加班！');
-                return;
-            }
-            state.isOvertime = !state.isOvertime;
-            if (state.isOvertime) {
-                state.overtimeStartTime = Date.now();
-                if (timers.overtime) clearInterval(timers.overtime);
-                timers.overtime = setInterval(overtimeTick, 1000);
-                dom.overtimeBtn.textContent = '加班中...';
-                dom.overtimeBtn.classList.add('action-btn-pulse');
-                sounds.overtimeStart.triggerAttackRelease("E4", "8n");
-            } else {
-                clearInterval(timers.overtime);
-                timers.overtime = null;
-                const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
-                state.accumulatedOvertimeSeconds += elapsedSeconds;
-                dom.overtimeBtn.textContent = '开始加班';
-                dom.overtimeBtn.classList.remove('action-btn-pulse');
-                sounds.stop.triggerAttackRelease("A4", "8n");
+            if (this.disabled) return;
+            switch (state.overtimeState) {
+                case 'auto-running':
+                case 'manual-running':
+                    clearInterval(timers.overtime);
+                    timers.overtime = null;
+                    const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
+                    state.accumulatedOvertimeSeconds += elapsedSeconds;
+                    state.overtimeState = 'paused';
+                    dom.overtimeBtn.textContent = '继续加班';
+                    dom.overtimeBtn.classList.remove('action-btn-pulse');
+                    sounds.stop.triggerAttackRelease("A4", "8n");
+                    break;
+                case 'paused':
+                    state.overtimeStartTime = Date.now();
+                    if (timers.overtime) clearInterval(timers.overtime);
+                    timers.overtime = setInterval(overtimeTick, 1000);
+                    state.overtimeState = 'manual-running';
+                    dom.overtimeBtn.textContent = '加班中...';
+                    dom.overtimeBtn.classList.add('action-btn-pulse');
+                    sounds.overtimeStart.triggerAttackRelease("E4", "8n");
+                    break;
             }
             saveState();
+        }
+
+        // 【细节调整】更新手动设定逻辑
+        function handleSetOvertime() {
+            const hours = parseFloat(dom.manualOvertimeHours.value) || 0;
+            const minutes = parseFloat(dom.manualOvertimeMinutes.value) || 0;
+
+            if (hours < 0 || minutes < 0 || minutes >= 60) {
+                alert('请输入有效的小时和分钟数（分钟应在0-59之间）！');
+                return;
+            }
+            
+            if (timers.overtime) {
+                clearInterval(timers.overtime);
+                timers.overtime = null;
+            }
+            state.overtimeState = 'paused';
+            state.accumulatedOvertimeSeconds = (hours * 3600) + (minutes * 60);
+            dom.overtimeBtn.textContent = '继续加班';
+            dom.overtimeBtn.classList.remove('action-btn-pulse');
+            overtimeTick();
+            saveState();
+            alert(`加班时长已设定为 ${hours} 小时 ${minutes} 分钟。`);
+            dom.manualOvertimeHours.value = '';
+            dom.manualOvertimeMinutes.value = '';
         }
 
         function resetDay() {
@@ -292,8 +359,10 @@
 
             state.isMoyuing = false;
             state.accumulatedMoyuSeconds = 0;
-            state.isOvertime = false;
+            state.overtimeState = 'disabled';
             state.accumulatedOvertimeSeconds = 0;
+            state.offDutyTimeReached = false;
+            state.overtimeAutoStartedToday = false;
             state.unlockedRewardCount = 0;
 
             dom.moyuTime.textContent = formatTime(0);
@@ -344,9 +413,9 @@
             }, 0);
         }
 
-        function saveState() { localStorage.setItem('moyuDashboardState_v21_final', JSON.stringify(state)); }
+        function saveState() { localStorage.setItem('moyuDashboardState_v23_retroactive', JSON.stringify(state)); }
         function loadState() {
-            const saved = localStorage.getItem('moyuDashboardState_v21_final');
+            const saved = localStorage.getItem('moyuDashboardState_v23_retroactive');
             if (saved) {
                 const loadedState = JSON.parse(saved);
                 Object.keys(state).forEach(key => {
@@ -365,10 +434,15 @@
                 state.accumulatedOvertimeSeconds = 0;
                 state.unlockedRewardCount = 0;
                 state.lastUpdateDate = today;
+                state.offDutyTimeReached = false;
+                state.overtimeState = 'disabled';
+                state.overtimeAutoStartedToday = false;
             }
             
             state.isMoyuing = false;
-            state.isOvertime = false;
+            if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
+                state.overtimeState = 'paused';
+            }
             saveState();
         }
         
@@ -462,12 +536,22 @@
 
             dom.moyuTime.textContent = formatTime(state.accumulatedMoyuSeconds);
             dom.moyuIncome.textContent = `¥ ${(state.accumulatedMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
-            dom.overtimeDuration.textContent = formatTime(state.accumulatedOvertimeSeconds);
-            overtimeTick();
+            
+            const now = new Date();
+            const todayEndDate = new Date(now.toDateString() + ' ' + state.settings.endTime);
+            if (now > todayEndDate && !state.overtimeAutoStartedToday) {
+                handleAutoOvertimeStart(now, todayEndDate, true);
+            } else {
+                if (state.overtimeState === 'paused') {
+                    dom.overtimeBtn.textContent = '继续加班';
+                }
+                overtimeTick();
+            }
 
             dom.moyuBtn.addEventListener('click', handleMoyuToggle);
             dom.overtimeBtn.addEventListener('click', handleOvertimeToggle);
             dom.resetDayBtn.addEventListener('click', resetDay);
+            dom.setOvertimeBtn.addEventListener('click', handleSetOvertime);
             dom.toggleMainSettingsBtn.addEventListener('click', () => dom.mainSettingsPanel.classList.toggle('open'));
             dom.toggleOvertimeSettingsBtn.addEventListener('click', () => dom.overtimeSettingsSection.classList.toggle('open'));
             dom.saveSettingsBtn.addEventListener('click', handleSaveSettings);
