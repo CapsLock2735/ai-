@@ -238,7 +238,7 @@
             if (timers.overtime) clearInterval(timers.overtime);
             timers.overtime = setInterval(overtimeTick, 1000);
             // 【细节调整】修改按钮文案
-            dom.overtimeBtn.textContent = '已下班 (点击暂停)';
+            dom.overtimeBtn.textContent = '已下班';
             dom.overtimeBtn.classList.add('action-btn-pulse');
             
             if (!isRetroactive) {
