@@ -1,5 +1,5 @@
+import * as bcrypt from 'bcrypt-ts';
 import { kv } from '@vercel/kv';
-import bcrypt from 'bcryptjs';
 
 export const config = {
   runtime: 'edge',
