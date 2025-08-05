@@ -30,18 +30,14 @@
 </head>
 <body class="text-white flex items-center justify-center min-h-screen p-4">
 
-    <!-- 【修复布局】右上角容器 -->
     <div class="fixed top-4 right-4 z-10 flex items-center gap-4">
-        <div id="user-status-area">
-            <!-- JS会在这里填充按钮或用户信息 -->
-        </div>
+        <div id="user-status-area"></div>
         <button id="toggle-main-settings-btn" class="text-gray-400 hover:text-white transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
         </button>
     </div>
 
     <div class="w-full max-w-2xl mx-auto space-y-6">
-        <!-- 主看板 -->
         <div class="bg-gray-800 p-6 rounded-xl shadow-2xl relative">
             <div class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
@@ -135,13 +131,6 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // =================================================================
-        // FINAL PLAN E: Zero-Setup, Master Key Search
-        // =================================================================
-        // ⭐⭐⭐ 你的 X-MASTER-KEY 已经填入 ⭐⭐⭐
-        const JSONBIN_MASTER_KEY = '$2a$10$dRTTkyfRQfP6FYODFFKSpeMMFIhLNA2AYCKmnr9K/aIFdEhrGCqXC';
-
-        let userBinId = null; 
         const dom = {
             moneyEarned: document.getElementById('money-earned'), countdown: document.getElementById('countdown-display'),
             moyuTime: document.getElementById('moyu-time'), moyuIncome: document.getElementById('moyu-income'),
@@ -171,7 +160,7 @@
         };
 
         const state = {
-            user: { isLoggedIn: false, username: null },
+            user: { isLoggedIn: false, username: null, token: null },
             salaryPerSecond: 0, dailyExpense: 0, unlockedRewardCount: 0,
             isMoyuing: false, moyuStartTime: 0, accumulatedMoyuSeconds: 0,
             overtimeState: 'disabled', overtimeStartTime: 0, accumulatedOvertimeSeconds: 0,
@@ -195,90 +184,59 @@
             { name: '可乐', unit: '瓶', price: 3, emoji: '🥤' }, { name: '奶茶', unit: '杯', price: 15, emoji: '🧋' }, { name: '午餐', unit: '顿', price: 25, emoji: '🍱' }, { name: '电影票', unit: '张', price: 50, emoji: '🎟️' }, { name: '好书', unit: '本', price: 80, emoji: '📖' }, { name: '新T恤', unit: '件', price: 150, emoji: '👕' }, { name: '机械键盘', unit: '个', price: 400, emoji: '⌨️' }, { name: '降噪耳机', unit: '副', price: 1500, emoji: '🎧' }, { name: '新款手机', unit: '部', price: 6000, emoji: '📱' }, { name: '短途旅行', unit: '次', price: 10000, emoji: '✈️' }
         ];
 
-        // =================================================================
-        // FINAL API Functions
-        // =================================================================
-        
-        async function findUserBinByName(username) {
-            const binNameToFind = `moyu-calc-${username}`;
-            const response = await fetch('https://api.jsonbin.io/v3/c/default/bins', {
-                headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
-            });
-            if (!response.ok) throw new Error('无法查找用户信息，请检查API Key');
-            const bins = await response.json();
-            const existingBin = bins.find(bin => bin.snippetMeta.name === binNameToFind);
-            return existingBin ? existingBin.record : null;
-        }
-
-        async function createNewUserBin(username, initialSettings) {
-            const response = await fetch('https://api.jsonbin.io/v3/b', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Master-Key': JSONBIN_MASTER_KEY,
-                    'X-Bin-Name': `moyu-calc-${username}`,
-                    'X-Bin-Private': 'true'
-                },
-                body: JSON.stringify(initialSettings)
-            });
-            if (!response.ok) throw new Error('创建用户设置失败');
+        async function apiRequest(endpoint, method = 'POST', body = null) {
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : null,
+            };
+            const response = await fetch(`/api/${endpoint}`, options);
             const data = await response.json();
-            return data.metadata.id;
-        }
-
-        async function loadSettingsFromBin(binId) {
-            const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-                headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
-            });
-            if (response.status === 404) return null;
-            if (!response.ok) throw new Error('读取用户设置失败');
-            const data = await response.json();
-            return data.record;
-        }
-
-        async function saveSettingsToBin(binId, settings) {
-            const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Master-Key': JSONBIN_MASTER_KEY
-                },
-                body: JSON.stringify(settings)
-            });
-            if (!response.ok) throw new Error('保存用户设置失败');
-        }
-
-        // =================================================================
-        // FINAL Login/Logout Logic
-        // =================================================================
-        async function handleLogin(username) {
-            if (JSONBIN_MASTER_KEY.includes('PASTE')) {
-                dom.authError.textContent = '错误：未配置API Key。';
-                return;
+            if (!response.ok) {
+                throw new Error(data.message || '请求失败');
             }
+            return data;
+        }
+
+        async function saveSettingsToServer() {
+            if (!state.user.isLoggedIn || !state.user.token) return;
+            try {
+                const response = await fetch(`/api/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${state.user.token}`
+                    },
+                    body: JSON.stringify(state.settings)
+                });
+                if (!response.ok) throw new Error('同步失败');
+                console.log('设置已同步到云端。');
+            } catch (error) {
+                console.error('同步设置失败:', error);
+                alert('同步设置到云端失败！');
+            }
+        }
+
+        async function handleLogin(username) {
             try {
                 dom.authSubmitBtn.disabled = true;
-                dom.authSubmitBtn.textContent = '查询中...';
+                dom.authSubmitBtn.textContent = '处理中...';
                 dom.authError.textContent = '';
 
-                let binId = await findUserBinByName(username);
-
-                if (binId) {
-                    console.log(`老用户登录: ${username}, Bin ID: ${binId}`);
-                } else {
-                    console.log(`新用户注册: ${username}. 正在创建设置文件...`);
-                    dom.authSubmitBtn.textContent = '创建中...';
-                    binId = await createNewUserBin(username, state.settings);
-                    console.log(`新设置文件创建成功, ID: ${binId}`);
-                }
-                userBinId = binId;
-
+                const data = await apiRequest('auth', 'POST', { username });
+                
                 state.user.isLoggedIn = true;
-                state.user.username = username;
-                localStorage.setItem('moyu-last-user', username);
+                state.user.username = data.username;
+                state.user.token = data.token;
+                
+                if (data.settings && Object.keys(data.settings).length > 0) {
+                    state.settings = { ...state.settings, ...data.settings };
+                }
 
+                localStorage.setItem('moyu-user-token', data.token);
+                
                 dom.authModal.classList.add('hidden');
-                await loadSettings();
+                applySettings();
                 updateUserStatusUI();
 
             } catch (error) {
@@ -289,43 +247,21 @@
                 dom.authSubmitBtn.textContent = '创建 / 登录';
             }
         }
-        
+
         function handleLogout() {
             if (!confirm('确定要登出吗？')) return;
-            state.user = { isLoggedIn: false, username: null };
-            userBinId = null;
-            localStorage.removeItem('moyu-last-user');
-            loadState();
+            state.user = { isLoggedIn: false, username: null, token: null };
+            localStorage.removeItem('moyu-user-token');
+            // 重置为默认设置
+            state.settings = {
+                startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
+                expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
+            };
             applySettings();
             updateUserStatusUI();
             alert('已登出。');
         }
 
-        async function loadSettings() {
-            if (state.user.isLoggedIn && userBinId) {
-                try {
-                    const cloudSettings = await loadSettingsFromBin(userBinId);
-                    if (cloudSettings) {
-                        state.settings = { ...state.settings, ...cloudSettings };
-                    }
-                } catch (error) {
-                    alert('加载云端设置失败，将使用本地版本。');
-                }
-            }
-            applySettings();
-        }
-
-        async function saveSettingsToServer() {
-            if (state.user.isLoggedIn && userBinId) {
-                try {
-                    await saveSettingsToBin(userBinId, state.settings);
-                    console.log('设置已成功同步到云端。');
-                } catch (error) {
-                    alert('同步设置到云端失败！');
-                }
-            }
-        }
-        
         function updateUserStatusUI() {
             if (state.user.isLoggedIn) {
                 dom.userStatusArea.innerHTML = `
@@ -352,17 +288,31 @@
         }
 
         async function init() {
-            loadState();
-            const lastUsername = localStorage.getItem('moyu-last-user');
-            if (lastUsername) {
-                // 自动登录
-                handleLogin(lastUsername);
-            } else {
-                applySettings();
-                updateUserStatusUI();
+            loadState(); // 先加载本地的计时器等状态
+            const token = localStorage.getItem('moyu-user-token');
+            if (token) {
+                try {
+                    const response = await fetch(`/api/settings`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) throw new Error('Token invalid');
+                    const data = await response.json();
+                    state.user.isLoggedIn = true;
+                    state.user.username = data.username;
+                    state.user.token = token;
+                    if (data.settings && Object.keys(data.settings).length > 0) {
+                        state.settings = { ...state.settings, ...data.settings };
+                    }
+                    console.log(`用户 ${data.username} 自动登录成功。`);
+                } catch (e) {
+                    console.log('自动登录失败，Token可能已失效。');
+                    localStorage.removeItem('moyu-user-token');
+                }
             }
             
-            // --- All event listeners ---
+            applySettings();
+            updateUserStatusUI();
+            
             dom.moyuBtn.addEventListener('click', handleMoyuToggle);
             dom.overtimeBtn.addEventListener('click', handleOvertimeToggle);
             dom.resetDayBtn.addEventListener('click', resetDay);
@@ -382,7 +332,6 @@
             });
             dom.authCancelBtn.addEventListener('click', () => dom.authModal.classList.add('hidden'));
             
-            // --- Start timers ---
             const now = new Date();
             const todayEndDate = new Date(now.toDateString() + ' ' + state.settings.endTime);
             if (now > todayEndDate && !state.overtimeAutoStartedToday) {
@@ -395,7 +344,6 @@
             mainTick();
         }
         
-        // --- All other functions (mainTick, moyuTick, etc.) are unchanged ---
         function applySettings() { renderSettingsFromState(); recalculateMetrics(); mainTick(); saveState(); }
         function handleSaveSettings() {
             const { settings } = state;
@@ -419,9 +367,9 @@
             dom.mainSettingsPanel.classList.remove('open');
             alert('设置已应用！' + (state.user.isLoggedIn ? ' 并已同步到云端。' : ''));
         }
-        function saveState() { localStorage.setItem('moyuDashboardState_v26_final', JSON.stringify(state)); }
+        function saveState() { localStorage.setItem('moyuDashboardState_v27_final', JSON.stringify(state)); }
         function loadState() {
-            const saved = localStorage.getItem('moyuDashboardState_v26_final');
+            const saved = localStorage.getItem('moyuDashboardState_v27_final');
             if (saved) {
                 const loadedState = JSON.parse(saved);
                 Object.keys(loadedState).forEach(key => {
