@@ -1,0 +1,12 @@
+{
+  "name": "moyu-calculator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3"
+  }
+}
