@@ -30,15 +30,19 @@
 </head>
 <body class="text-white flex items-center justify-center min-h-screen p-4">
 
-    <!-- 云同步按钮/用户状态 -->
-    <div id="user-status-area" class="fixed top-6 right-6 z-10">
-        <!-- 内容由JS动态填充 -->
+    <!-- 【修复布局】右上角容器 -->
+    <div class="fixed top-4 right-4 z-10 flex items-center gap-4">
+        <div id="user-status-area">
+            <!-- JS会在这里填充按钮或用户信息 -->
+        </div>
+        <button id="toggle-main-settings-btn" class="text-gray-400 hover:text-white transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        </button>
     </div>
 
     <div class="w-full max-w-2xl mx-auto space-y-6">
         <!-- 主看板 -->
         <div class="bg-gray-800 p-6 rounded-xl shadow-2xl relative">
-            <button id="toggle-main-settings-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button>
             <div class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
                     <div><h2 class="text-sm font-bold text-gray-400">今日总收益</h2><p id="money-earned" class="text-4xl lg:text-5xl font-black mt-2 money-text">¥ 0.00</p></div>
@@ -54,7 +58,7 @@
                  <button id="overtime-btn" class="flex-1 bg-lime-600 hover:bg-lime-700 text-white font-bold py-3 rounded-xl transition-all duration-300 shadow-lg text-lg">开始加班</button>
             </div>
         </div>
-        <!-- 其他HTML结构... -->
+        
         <div id="main-settings-panel" class="settings-section">
             <div class="bg-gray-800 p-4 rounded-xl shadow-2xl space-y-4">
                 <div>
@@ -75,6 +79,7 @@
                 <button id="save-settings-btn" class="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold py-2 rounded-md transition-colors">保存并应用</button>
             </div>
         </div>
+
         <div id="overtime-board" class="bg-gray-800 p-6 rounded-xl shadow-2xl text-center relative">
             <button id="toggle-overtime-settings-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start">
@@ -97,6 +102,7 @@
                 </div>
             </div>
         </div>
+
         <div id="wealth-board" class="bg-gray-800 p-6 rounded-xl shadow-2xl text-center">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start">
                 <div class="md:border-r border-gray-700 md:pr-6"><p class="text-sm text-gray-400">今日净赚 (盈余)</p><p id="net-surplus" class="text-5xl font-black mt-2 surplus-text">¥ 0.00</p></div>
@@ -106,12 +112,12 @@
                 </div>
             </div>
         </div>
+
         <div class="mt-4">
             <button id="reset-day-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all duration-300 shadow-lg text-lg">开启新的一天</button>
         </div>
     </div>
 
-    <!-- 登录模态框 -->
     <div id="auth-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm space-y-6 border border-gray-700">
             <h2 class="text-2xl font-bold text-center text-white">云同步设置</h2>
@@ -129,10 +135,13 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const JSONBIN_API_KEY = '$2a$10$ms4QwtTXWjNdEtHPODh31esmoh9LY5qrDTjlSBI7hfqeVQekLYTKm';
-        
-        let userBinId = null; 
+        // =================================================================
+        // FINAL PLAN E: Zero-Setup, Master Key Search
+        // =================================================================
+        // ⭐⭐⭐ 你的 X-MASTER-KEY 已经填入 ⭐⭐⭐
+        const JSONBIN_MASTER_KEY = '$2a$10$dRTTkyfRQfP6FYODFFKSpeMMFIhLNA2AYCKmnr9K/aIFdEhrGCqXC';
 
+        let userBinId = null; 
         const dom = {
             moneyEarned: document.getElementById('money-earned'), countdown: document.getElementById('countdown-display'),
             moyuTime: document.getElementById('moyu-time'), moyuIncome: document.getElementById('moyu-income'),
@@ -187,44 +196,42 @@
         ];
 
         // =================================================================
-        // PLAN B: Rewritten API Functions
+        // FINAL API Functions
         // =================================================================
-        async function createNewBin(username, initialSettings) {
-            const response = await fetch('https://api.jsonbin.io/v3/b', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Master-Key': JSONBIN_API_KEY,
-                    'X-Bin-Name': `moyu-calc-${username}`,
-                    'X-Bin-Private': 'true'
-                },
-                body: JSON.stringify(initialSettings)
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`创建云端存储失败: ${errorData.message}`);
-            }
-            const data = await response.json();
-            return data.metadata.id;
-        }
-
-        async function findUserBin(username) {
+        
+        async function findUserBinByName(username) {
             const binNameToFind = `moyu-calc-${username}`;
             const response = await fetch('https://api.jsonbin.io/v3/c/default/bins', {
-                headers: { 'X-Master-Key': JSONBIN_API_KEY }
+                headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
             });
-            if (!response.ok) throw new Error('无法查找用户信息');
+            if (!response.ok) throw new Error('无法查找用户信息，请检查API Key');
             const bins = await response.json();
             const existingBin = bins.find(bin => bin.snippetMeta.name === binNameToFind);
             return existingBin ? existingBin.record : null;
         }
 
+        async function createNewUserBin(username, initialSettings) {
+            const response = await fetch('https://api.jsonbin.io/v3/b', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': JSONBIN_MASTER_KEY,
+                    'X-Bin-Name': `moyu-calc-${username}`,
+                    'X-Bin-Private': 'true'
+                },
+                body: JSON.stringify(initialSettings)
+            });
+            if (!response.ok) throw new Error('创建用户设置失败');
+            const data = await response.json();
+            return data.metadata.id;
+        }
+
         async function loadSettingsFromBin(binId) {
             const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-                headers: { 'X-Master-Key': JSONBIN_API_KEY }
+                headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
             });
             if (response.status === 404) return null;
-            if (!response.ok) throw new Error('读取云端设置失败');
+            if (!response.ok) throw new Error('读取用户设置失败');
             const data = await response.json();
             return data.record;
         }
@@ -234,40 +241,41 @@
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Master-Key': JSONBIN_API_KEY
+                    'X-Master-Key': JSONBIN_MASTER_KEY
                 },
                 body: JSON.stringify(settings)
             });
-            if (!response.ok) throw new Error('保存设置到云端失败');
+            if (!response.ok) throw new Error('保存用户设置失败');
         }
 
         // =================================================================
-        // PLAN B: Rewritten Login/Logout Logic
+        // FINAL Login/Logout Logic
         // =================================================================
         async function handleLogin(username) {
-            if (!JSONBIN_API_KEY || JSONBIN_API_KEY === 'PASTE_YOUR_X-MASTER-KEY_HERE') {
-                alert('错误：请先在代码中填入你的 JSONBin.io X-Master-Key！');
+            if (JSONBIN_MASTER_KEY.includes('PASTE')) {
+                dom.authError.textContent = '错误：未配置API Key。';
                 return;
             }
             try {
                 dom.authSubmitBtn.disabled = true;
-                dom.authSubmitBtn.textContent = '处理中...';
+                dom.authSubmitBtn.textContent = '查询中...';
                 dom.authError.textContent = '';
 
-                let binId = await findUserBin(username);
+                let binId = await findUserBinByName(username);
 
                 if (binId) {
-                    console.log(`老用户登录，Bin ID: ${binId}`);
+                    console.log(`老用户登录: ${username}, Bin ID: ${binId}`);
                 } else {
-                    binId = await createNewBin(username, state.settings);
-                    console.log(`新用户注册，已创建 Bin ID: ${binId}`);
+                    console.log(`新用户注册: ${username}. 正在创建设置文件...`);
+                    dom.authSubmitBtn.textContent = '创建中...';
+                    binId = await createNewUserBin(username, state.settings);
+                    console.log(`新设置文件创建成功, ID: ${binId}`);
                 }
                 userBinId = binId;
 
                 state.user.isLoggedIn = true;
                 state.user.username = username;
-                localStorage.setItem('moyuUsername', username);
-                localStorage.setItem('moyuUserBinId', userBinId);
+                localStorage.setItem('moyu-last-user', username);
 
                 dom.authModal.classList.add('hidden');
                 await loadSettings();
@@ -281,13 +289,12 @@
                 dom.authSubmitBtn.textContent = '创建 / 登录';
             }
         }
-
+        
         function handleLogout() {
-            if (!confirm('确定要登出吗？本地设置将保留。')) return;
+            if (!confirm('确定要登出吗？')) return;
             state.user = { isLoggedIn: false, username: null };
             userBinId = null;
-            localStorage.removeItem('moyuUsername');
-            localStorage.removeItem('moyuUserBinId');
+            localStorage.removeItem('moyu-last-user');
             loadState();
             applySettings();
             updateUserStatusUI();
@@ -297,14 +304,11 @@
         async function loadSettings() {
             if (state.user.isLoggedIn && userBinId) {
                 try {
-                    console.log(`从云端 Bin [${userBinId}] 加载设置...`);
                     const cloudSettings = await loadSettingsFromBin(userBinId);
                     if (cloudSettings) {
                         state.settings = { ...state.settings, ...cloudSettings };
-                        console.log('云端设置加载成功。');
                     }
                 } catch (error) {
-                    console.error('加载云端设置失败:', error);
                     alert('加载云端设置失败，将使用本地版本。');
                 }
             }
@@ -317,7 +321,6 @@
                     await saveSettingsToBin(userBinId, state.settings);
                     console.log('设置已成功同步到云端。');
                 } catch (error) {
-                    console.error('同步设置到云端失败:', error);
                     alert('同步设置到云端失败！');
                 }
             }
@@ -326,13 +329,10 @@
         function updateUserStatusUI() {
             if (state.user.isLoggedIn) {
                 dom.userStatusArea.innerHTML = `
-                    <div class="flex items-center gap-2 text-sm font-bold text-white bg-gray-700/50 rounded-full shadow-lg p-2">
+                    <div class="flex items-center gap-2 text-sm font-bold text-white bg-gray-700/50 rounded-full shadow-lg p-2 backdrop-blur-sm">
                         <span class="text-amber-400 px-2">${state.user.username}</span>
                         <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors" title="登出">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1z" clip-rule="evenodd" />
-                              <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v1a1 1 0 11-2 0v-1a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v1a1 1 0 11-2 0v-1a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                         </button>
                     </div>
                 `;
@@ -340,7 +340,7 @@
             } else {
                 dom.userStatusArea.innerHTML = `
                     <button id="cloud-sync-btn" class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gray-700/50 rounded-full shadow-lg hover:bg-gray-600/80 transition-all duration-300 backdrop-blur-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5.5 16.5v-1.429c0-.837.44-1.606 1.171-2.021l5.5-3.143c.73-.415 1.171-1.184 1.171-2.021V6.428a2.5 2.5 0 00-5 0v2.858c0 .837-.44 1.606-1.171 2.021l-5.5 3.143A2.5 2.5 0 003 16.5v1.429a2.5 2.5 0 005 0z" clip-rule="evenodd" /><path d="M12.5 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v.518a3.75 3.75 0 013.483 3.483H14.75a.75.75 0 010 1.5h-.518a3.75 3.75 0 01-3.483 3.483v.518a.75.75 0 01-1.5 0v-.518a3.75 3.75 0 01-3.483-3.483H5.25a.75.75 0 010-1.5h.518A3.75 3.75 0 019.25 4.268V3.75A.75.75 0 0110 3zM11.5 10a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" clip-rule="evenodd" /><path d="M3 8.25a.75.75 0 01.75-.75h1.018a5.25 5.25 0 019.964 0h1.018a.75.75 0 010 1.5H15.75a5.25 5.25 0 01-9.964 0H3.75a.75.75 0 01-.75-.75z" /></svg>
                         <span>云同步</span>
                     </button>
                 `;
@@ -353,19 +353,16 @@
 
         async function init() {
             loadState();
-            const savedUsername = localStorage.getItem('moyuUsername');
-            const savedBinId = localStorage.getItem('moyuUserBinId');
-            if (savedUsername && savedBinId) {
-                state.user.isLoggedIn = true;
-                state.user.username = savedUsername;
-                userBinId = savedBinId;
-                console.log(`从本地恢复登录状态: ${savedUsername}, Bin ID: ${userBinId}`);
-                await loadSettings();
+            const lastUsername = localStorage.getItem('moyu-last-user');
+            if (lastUsername) {
+                // 自动登录
+                handleLogin(lastUsername);
             } else {
                 applySettings();
+                updateUserStatusUI();
             }
-            updateUserStatusUI();
             
+            // --- All event listeners ---
             dom.moyuBtn.addEventListener('click', handleMoyuToggle);
             dom.overtimeBtn.addEventListener('click', handleOvertimeToggle);
             dom.resetDayBtn.addEventListener('click', resetDay);
@@ -385,8 +382,7 @@
             });
             dom.authCancelBtn.addEventListener('click', () => dom.authModal.classList.add('hidden'));
             
-            dom.moyuTime.textContent = formatTime(state.accumulatedMoyuSeconds);
-            dom.moyuIncome.textContent = `¥ ${(state.accumulatedMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
+            // --- Start timers ---
             const now = new Date();
             const todayEndDate = new Date(now.toDateString() + ' ' + state.settings.endTime);
             if (now > todayEndDate && !state.overtimeAutoStartedToday) {
@@ -399,7 +395,7 @@
             mainTick();
         }
         
-        // --- Unchanged Functions ---
+        // --- All other functions (mainTick, moyuTick, etc.) are unchanged ---
         function applySettings() { renderSettingsFromState(); recalculateMetrics(); mainTick(); saveState(); }
         function handleSaveSettings() {
             const { settings } = state;
@@ -423,9 +419,9 @@
             dom.mainSettingsPanel.classList.remove('open');
             alert('设置已应用！' + (state.user.isLoggedIn ? ' 并已同步到云端。' : ''));
         }
-        function saveState() { localStorage.setItem('moyuDashboardState_v25_planB', JSON.stringify(state)); }
+        function saveState() { localStorage.setItem('moyuDashboardState_v26_final', JSON.stringify(state)); }
         function loadState() {
-            const saved = localStorage.getItem('moyuDashboardState_v25_planB');
+            const saved = localStorage.getItem('moyuDashboardState_v26_final');
             if (saved) {
                 const loadedState = JSON.parse(saved);
                 Object.keys(loadedState).forEach(key => {
