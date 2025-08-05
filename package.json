@@ -7,7 +7,7 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
+    "bcrypt-ts": "^5.0.2",
     "@vercel/kv": "^1.0.1"
   }
 }
