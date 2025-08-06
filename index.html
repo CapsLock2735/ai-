@@ -235,7 +235,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function apiCall(endpoint, options = {}) {
         const response = await fetch(endpoint, options);
-        // 尝试解析JSON，如果失败则抛出带有响应文本的错误
         let data;
         try {
             data = await response.json();
@@ -284,7 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function saveSettings() {
-        // 从表单收集数据
         state.settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
         state.settings.workSystem = dom.workSystem.value;
         state.settings.customWorkDays = parseFloat(dom.customWorkDays.value) || 22;
@@ -366,7 +364,12 @@ document.addEventListener('DOMContentLoaded', () => {
         state.auth.isLoggedIn = false;
         localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
         
-        loadState(); 
+        // Reset settings to default
+        state.settings = {
+            startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
+            expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
+        };
+        
         recalculateMetrics();
         renderSettingsFromState();
         updateUIForLoginState();
@@ -578,7 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.auth.token = null;
                 localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
                 updateUIForLoginState();
-                updateSyncStatus('error', '自动登录失败');
+                updateSyncStatus('error', '自动登录失败，请重新登录');
                 dom.authModal.classList.remove('hidden');
             }
         } else {
