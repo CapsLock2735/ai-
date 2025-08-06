@@ -196,6 +196,12 @@ document.addEventListener('DOMContentLoaded', () => {
         salaryPerSecond: 0, dailyExpense: 0, unlockedRewardCount: 0,
         isMoyuing: false, isOvertime: false,
         offDutyTimeReached: false,
+        // These properties store the authoritative start times from the server
+        serverMoyuStartTime: null,
+        serverOvertimeStartTime: null,
+        // These store the base accumulated seconds from the server
+        baseMoyuSeconds: 0,
+        baseOvertimeSeconds: 0,
         settings: {
             startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
             expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
@@ -208,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Constants and Timers ---
-    const timers = { main: null, runtimePoll: null };
+    const timers = { main: null, runtimePoll: null, localDisplay: null };
     const sounds = {
         moyuStart: new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
         overtimeStart: new Tone.Synth({ oscillator: { type: 'square' } }).toDestination(),
@@ -297,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
         recalculateMetrics();
 
         if (!state.auth.isLoggedIn || !state.auth.token) {
-            // Guest mode logic can be added here if needed
             dom.mainSettingsPanel.classList.remove('open');
             return;
         }
@@ -325,9 +330,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateRuntimeState(runtime) {
         if (!runtime) return;
         
-        dom.moyuTime.textContent = formatTime(runtime.currentMoyuSeconds);
-        dom.overtimeDuration.textContent = formatTime(runtime.currentOvertimeSeconds);
-        
+        state.isMoyuing = runtime.isMoyuing;
+        state.isOvertime = runtime.isOvertime;
+        state.serverMoyuStartTime = runtime.moyuStartTime;
+        state.serverOvertimeStartTime = runtime.overtimeStartTime;
+        state.baseMoyuSeconds = runtime.accumulatedMoyuSeconds;
+        state.baseOvertimeSeconds = runtime.accumulatedOvertimeSeconds;
+
         if (runtime.isMoyuing) {
             dom.moyuBtn.textContent = '摸鱼中...';
             dom.moyuBtn.classList.add('action-btn-pulse');
@@ -343,21 +352,15 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.overtimeBtn.textContent = '开始加班';
             dom.overtimeBtn.classList.remove('action-btn-pulse');
         }
-        
-        state.isMoyuing = runtime.isMoyuing;
-        state.isOvertime = runtime.isOvertime;
-        
-        // Update income based on server-calculated time
-        dom.moyuIncome.textContent = `¥ ${(runtime.currentMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
-        let overtimeIncomeVal = 0;
-        if (state.settings.isPaidOvertime) {
-            overtimeIncomeVal = runtime.currentOvertimeSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
+
+        // Start or stop the local display timer based on the authoritative server state
+        if (state.isMoyuing || state.isOvertime) {
+            startLocalDisplayTimer();
         } else {
-            overtimeIncomeVal = runtime.currentOvertimeSeconds * state.salaryPerSecond * -1;
+            stopLocalDisplayTimer();
+            // Ensure final state is displayed correctly
+            updateLocalDisplay();
         }
-        dom.overtimeIncome.textContent = `¥ ${overtimeIncomeVal.toFixed(2)}`;
-        dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncomeVal >= 0);
-        dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncomeVal < 0);
     }
 
     async function pollRuntimeState() {
@@ -370,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'GET',
                 headers: { 'Authorization': `Bearer ${state.auth.token}` }
             });
+            // This will recalibrate the local timer with authoritative data
             updateRuntimeState(data.runtime);
         } catch (error) {
             console.error("Polling runtime state failed:", error.message);
@@ -380,12 +384,50 @@ document.addEventListener('DOMContentLoaded', () => {
     function startPolling() {
         stopPolling();
         pollRuntimeState();
-        timers.runtimePoll = setInterval(pollRuntimeState, 5000);
+        timers.runtimePoll = setInterval(pollRuntimeState, 7000); // Poll every 7 seconds for calibration
     }
 
     function stopPolling() {
         if (timers.runtimePoll) clearInterval(timers.runtimePoll);
         timers.runtimePoll = null;
+    }
+
+    function updateLocalDisplay() {
+        let currentMoyuSeconds = state.baseMoyuSeconds;
+        if (state.isMoyuing && state.serverMoyuStartTime) {
+            const elapsed = (Date.now() - state.serverMoyuStartTime) / 1000;
+            currentMoyuSeconds += elapsed > 0 ? elapsed : 0;
+        }
+
+        let currentOvertimeSeconds = state.baseOvertimeSeconds;
+        if (state.isOvertime && state.serverOvertimeStartTime) {
+            const elapsed = (Date.now() - state.serverOvertimeStartTime) / 1000;
+            currentOvertimeSeconds += elapsed > 0 ? elapsed : 0;
+        }
+
+        dom.moyuTime.textContent = formatTime(currentMoyuSeconds);
+        dom.overtimeDuration.textContent = formatTime(currentOvertimeSeconds);
+
+        dom.moyuIncome.textContent = `¥ ${(currentMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
+        let overtimeIncomeVal = 0;
+        if (state.settings.isPaidOvertime) {
+            overtimeIncomeVal = currentOvertimeSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
+        } else {
+            overtimeIncomeVal = currentOvertimeSeconds * state.salaryPerSecond * -1;
+        }
+        dom.overtimeIncome.textContent = `¥ ${overtimeIncomeVal.toFixed(2)}`;
+        dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncomeVal >= 0);
+        dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncomeVal < 0);
+    }
+
+    function startLocalDisplayTimer() {
+        stopLocalDisplayTimer();
+        timers.localDisplay = setInterval(updateLocalDisplay, 1000);
+    }
+
+    function stopLocalDisplayTimer() {
+        if (timers.localDisplay) clearInterval(timers.localDisplay);
+        timers.localDisplay = null;
     }
 
     // --- Event Handlers ---
@@ -416,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleLogout() {
         if (!confirm('确定要登出吗？')) return;
         stopPolling();
+        stopLocalDisplayTimer();
         state.auth.token = null;
         state.auth.username = null;
         state.auth.isLoggedIn = false;
@@ -439,6 +482,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!isMoyu && btn.disabled) return;
 
+        // Optimistic UI update for instant feedback
+        btn.textContent = isRunning ? (isMoyu ? '开始摸鱼' : '开始加班') : (isMoyu ? '摸鱼中...' : '加班中...');
+        btn.classList.toggle('action-btn-pulse', !isRunning);
+
         try {
             const data = await apiCall('runtime', {
                 method: 'POST',
@@ -448,6 +495,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updateRuntimeState(data);
         } catch (error) {
             updateSyncStatus('error', `操作失败: ${error.message}`);
+            // Revert UI on failure
+            btn.textContent = isRunning ? '摸鱼中...' : (isMoyu ? '开始摸鱼' : '开始加班');
+            btn.classList.toggle('action-btn-pulse', isRunning);
         }
     }
 
@@ -505,7 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
             moneyEarnedToday = workSeconds * state.salaryPerSecond;
         }
         
-        // 总收益现在只计算工作时间内的，加班收益由服务器实时数据决定
         const totalMoney = moneyEarnedToday;
         const netSurplus = totalMoney - state.dailyExpense;
 
@@ -653,7 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.moyuBtn.addEventListener('click', () => handleTimerToggle('moyu'));
         dom.overtimeBtn.addEventListener('click', () => handleTimerToggle('overtime'));
         dom.resetDayBtn.addEventListener('click', resetDay);
-        // dom.setOvertimeBtn.addEventListener('click', handleSetOvertime); // This feature is complex with server-side timing
+        // dom.setOvertimeBtn is not handled by server-side timing yet.
         
         timers.main = setInterval(mainTick, 1000);
         mainTick();
