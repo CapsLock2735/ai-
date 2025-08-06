@@ -10,7 +10,7 @@ const redis = Redis.fromEnv({
     token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
 });
 
-// --- 认证逻辑 (不变) ---
+// --- 认证逻辑 ---
 async function handleAuth(payload) {
     const { action, username, password } = payload;
     if (!username || !password || !action) {
@@ -40,7 +40,7 @@ async function handleAuth(payload) {
     throw { status: 400, message: '无效的认证操作' };
 }
 
-// --- 设置逻辑 (不变) ---
+// --- 设置逻辑 ---
 async function handleSettings(request, username) {
     const settingsKey = `settings:${username}`;
     if (request.method === 'GET') {
@@ -55,7 +55,7 @@ async function handleSettings(request, username) {
     throw { status: 405, message: '无效的设置操作方法' };
 }
 
-// --- 新增：运行时状态逻辑 ---
+// --- 运行时状态逻辑 ---
 async function handleRuntime(request, username) {
     const runtimeKey = `runtime:${username}`;
     if (request.method === 'GET') {
@@ -64,17 +64,20 @@ async function handleRuntime(request, username) {
     }
     if (request.method === 'POST') {
         const runtimeData = await request.json();
-        // 设置一个过期时间，比如 24 小时，避免旧数据永久留存
+        runtimeData.serverTimestamp = Date.now(); 
         await redis.set(runtimeKey, runtimeData, { ex: 86400 }); 
         return { status: 200, body: { message: '运行时状态已同步' } };
     }
     throw { status: 405, message: '无效的运行时操作方法' };
 }
 
-
-// --- 主处理函数 (修改) ---
+// --- 主处理函数 ---
 export default async function handler(request) {
-    const headers = { 'Content-Type': 'application/json' };
+    const baseHeaders = {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    };
+
     try {
         const url = new URL(request.url);
         const route = url.searchParams.get('route');
@@ -84,7 +87,6 @@ export default async function handler(request) {
             const payload = await request.json();
             result = await handleAuth(payload);
         } else {
-            // 对于 settings 和 runtime，都需要先验证 token
             const authHeader = request.headers.get('authorization');
             if (!authHeader || !authHeader.startsWith('Bearer ')) {
                 throw { status: 401, message: '未提供授权 Token' };
@@ -104,12 +106,12 @@ export default async function handler(request) {
             }
         }
         
-        return new Response(JSON.stringify(result.body), { status: result.status, headers });
+        return new Response(JSON.stringify(result.body), { status: result.status, headers: baseHeaders });
 
     } catch (error) {
         const status = error.status || 500;
         const message = error.message || '服务器内部错误';
         console.error('API Handler Error:', { status, message, error });
-        return new Response(JSON.stringify({ message }), { status, headers });
+        return new Response(JSON.stringify({ message }), { status, headers: baseHeaders });
     }
 }
