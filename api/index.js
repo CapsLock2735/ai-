@@ -55,20 +55,84 @@ async function handleSettings(request, username) {
     throw { status: 405, message: '无效的设置操作方法' };
 }
 
-// --- 运行时状态逻辑 ---
-async function handleRuntime(request, username) {
+// --- 运行时状态 POST 请求处理 ---
+async function handleRuntimeAction(request, username) {
     const runtimeKey = `runtime:${username}`;
-    if (request.method === 'GET') {
-        const runtimeState = await redis.get(runtimeKey);
-        return { status: 200, body: { runtime: runtimeState || null } };
+    const now = Date.now();
+    let state = await redis.get(runtimeKey) || {
+        accumulatedMoyuSeconds: 0, isMoyuing: false, moyuStartTime: null,
+        accumulatedOvertimeSeconds: 0, isOvertime: false, overtimeStartTime: null,
+    };
+
+    const { route } = await request.json();
+
+    switch (route) {
+        case 'startMoyu':
+            if (!state.isMoyuing) {
+                state.isMoyuing = true;
+                state.moyuStartTime = now;
+            }
+            break;
+        case 'stopMoyu':
+            if (state.isMoyuing && state.moyuStartTime) {
+                const elapsed = (now - state.moyuStartTime) / 1000;
+                state.accumulatedMoyuSeconds += elapsed > 0 ? elapsed : 0;
+                state.isMoyuing = false;
+                state.moyuStartTime = null;
+            }
+            break;
+        case 'startOvertime':
+            if (!state.isOvertime) {
+                state.isOvertime = true;
+                state.overtimeStartTime = now;
+            }
+            break;
+        case 'stopOvertime':
+            if (state.isOvertime && state.overtimeStartTime) {
+                const elapsed = (now - state.overtimeStartTime) / 1000;
+                state.accumulatedOvertimeSeconds += elapsed > 0 ? elapsed : 0;
+                state.isOvertime = false;
+                state.overtimeStartTime = null;
+            }
+            break;
+        case 'resetDay':
+             state = {
+                accumulatedMoyuSeconds: 0, isMoyuing: false, moyuStartTime: null,
+                accumulatedOvertimeSeconds: 0, isOvertime: false, overtimeStartTime: null,
+            };
+            break;
+        default:
+            throw { status: 400, message: '无效的运行时操作' };
     }
-    if (request.method === 'POST') {
-        const runtimeData = await request.json();
-        runtimeData.serverTimestamp = Date.now(); 
-        await redis.set(runtimeKey, runtimeData, { ex: 86400 }); 
-        return { status: 200, body: { message: '运行时状态已同步' } };
+
+    await redis.set(runtimeKey, state, { ex: 86400 });
+    return { status: 200, body: state };
+}
+
+// --- 运行时状态 GET 请求处理 ---
+async function getRuntimeState(username) {
+    const runtimeKey = `runtime:${username}`;
+    const now = Date.now();
+    const state = await redis.get(runtimeKey) || {
+        accumulatedMoyuSeconds: 0, isMoyuing: false, moyuStartTime: null,
+        accumulatedOvertimeSeconds: 0, isOvertime: false, overtimeStartTime: null,
+    };
+
+    if (state.isMoyuing && state.moyuStartTime) {
+        const elapsed = (now - state.moyuStartTime) / 1000;
+        state.currentMoyuSeconds = state.accumulatedMoyuSeconds + (elapsed > 0 ? elapsed : 0);
+    } else {
+        state.currentMoyuSeconds = state.accumulatedMoyuSeconds;
     }
-    throw { status: 405, message: '无效的运行时操作方法' };
+
+    if (state.isOvertime && state.overtimeStartTime) {
+        const elapsed = (now - state.overtimeStartTime) / 1000;
+        state.currentOvertimeSeconds = state.accumulatedOvertimeSeconds + (elapsed > 0 ? elapsed : 0);
+    } else {
+        state.currentOvertimeSeconds = state.accumulatedOvertimeSeconds;
+    }
+    
+    return { status: 200, body: { runtime: state } };
 }
 
 // --- 主处理函数 ---
@@ -81,26 +145,24 @@ export default async function handler(request) {
     try {
         const url = new URL(request.url);
         const route = url.searchParams.get('route');
-
         let result;
+
         if (route === 'auth') {
             const payload = await request.json();
             result = await handleAuth(payload);
         } else {
             const authHeader = request.headers.get('authorization');
-            if (!authHeader || !authHeader.startsWith('Bearer ')) {
-                throw { status: 401, message: '未提供授权 Token' };
-            }
+            if (!authHeader || !authHeader.startsWith('Bearer ')) throw { status: 401, message: '未提供授权 Token' };
             const token = authHeader.split(' ')[1];
             const username = await redis.get(`token:${token}`);
-            if (!username) {
-                throw { status: 403, message: '无效或过期的 Token' };
-            }
+            if (!username) throw { status: 403, message: '无效或过期的 Token' };
 
             if (route === 'settings') {
                 result = await handleSettings(request, username);
-            } else if (route === 'runtime') {
-                result = await handleRuntime(request, username);
+            } else if (route === 'runtime' && request.method === 'GET') {
+                result = await getRuntimeState(username);
+            } else if (route === 'runtime' && request.method === 'POST') {
+                result = await handleRuntimeAction(request, username);
             } else {
                 throw { status: 404, message: '无效的路由' };
             }
