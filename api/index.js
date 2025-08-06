@@ -10,7 +10,7 @@ const redis = Redis.fromEnv({
     token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
 });
 
-// --- 认证逻辑 ---
+// --- 认证逻辑 (不变) ---
 async function handleAuth(payload) {
     const { action, username, password } = payload;
     if (!username || !password || !action) {
@@ -40,18 +40,8 @@ async function handleAuth(payload) {
     throw { status: 400, message: '无效的认证操作' };
 }
 
-// --- 设置逻辑 ---
-async function handleSettings(request) {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw { status: 401, message: '未提供授权 Token' };
-    }
-    const token = authHeader.split(' ')[1];
-    const username = await redis.get(`token:${token}`);
-    if (!username) {
-        throw { status: 403, message: '无效或过期的 Token' };
-    }
-
+// --- 设置逻辑 (不变) ---
+async function handleSettings(request, username) {
     const settingsKey = `settings:${username}`;
     if (request.method === 'GET') {
         const settings = await redis.get(settingsKey);
@@ -65,21 +55,53 @@ async function handleSettings(request) {
     throw { status: 405, message: '无效的设置操作方法' };
 }
 
-// --- 主处理函数 ---
+// --- 新增：运行时状态逻辑 ---
+async function handleRuntime(request, username) {
+    const runtimeKey = `runtime:${username}`;
+    if (request.method === 'GET') {
+        const runtimeState = await redis.get(runtimeKey);
+        return { status: 200, body: { runtime: runtimeState || null } };
+    }
+    if (request.method === 'POST') {
+        const runtimeData = await request.json();
+        // 设置一个过期时间，比如 24 小时，避免旧数据永久留存
+        await redis.set(runtimeKey, runtimeData, { ex: 86400 }); 
+        return { status: 200, body: { message: '运行时状态已同步' } };
+    }
+    throw { status: 405, message: '无效的运行时操作方法' };
+}
+
+
+// --- 主处理函数 (修改) ---
 export default async function handler(request) {
     const headers = { 'Content-Type': 'application/json' };
     try {
         const url = new URL(request.url);
-        const route = url.searchParams.get('route'); // 使用 URL 参数来路由
+        const route = url.searchParams.get('route');
 
         let result;
         if (route === 'auth') {
             const payload = await request.json();
             result = await handleAuth(payload);
-        } else if (route === 'settings') {
-            result = await handleSettings(request);
         } else {
-            throw { status: 404, message: '无效的路由' };
+            // 对于 settings 和 runtime，都需要先验证 token
+            const authHeader = request.headers.get('authorization');
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                throw { status: 401, message: '未提供授权 Token' };
+            }
+            const token = authHeader.split(' ')[1];
+            const username = await redis.get(`token:${token}`);
+            if (!username) {
+                throw { status: 403, message: '无效或过期的 Token' };
+            }
+
+            if (route === 'settings') {
+                result = await handleSettings(request, username);
+            } else if (route === 'runtime') {
+                result = await handleRuntime(request, username);
+            } else {
+                throw { status: 404, message: '无效的路由' };
+            }
         }
         
         return new Response(JSON.stringify(result.body), { status: result.status, headers });
