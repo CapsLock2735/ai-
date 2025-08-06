@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "bcrypt-ts": "^5.0.2",
-    "@vercel/kv": "^1.0.1"
+    "@upstash/redis": "^1.31.5" 
   }
 }
