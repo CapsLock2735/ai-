@@ -194,19 +194,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- State Management ---
     const state = {
         salaryPerSecond: 0, dailyExpense: 0, unlockedRewardCount: 0,
-        isMoyuing: false, moyuStartTime: 0,
-        overtimeState: 'disabled', overtimeStartTime: 0, 
+        isMoyuing: false, isOvertime: false,
         offDutyTimeReached: false,
         settings: {
             startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
             expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
-        },
-        runtime: {
-            lastUpdateDate: null,
-            accumulatedMoyuSeconds: 0,
-            accumulatedOvertimeSeconds: 0,
-            overtimeState: 'disabled',
-            overtimeAutoStartedToday: false,
         },
         auth: {
             token: null,
@@ -216,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Constants and Timers ---
-    const timers = { main: null, moyu: null, overtime: null, runtimeSync: null };
+    const timers = { main: null, runtimePoll: null };
     const sounds = {
         moyuStart: new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
         overtimeStart: new Tone.Synth({ oscillator: { type: 'square' } }).toDestination(),
@@ -227,8 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const productList = [
         { name: '可乐', unit: '瓶', price: 3, emoji: '🥤' }, { name: '奶茶', unit: '杯', price: 15, emoji: '🧋' }, { name: '午餐', unit: '顿', price: 25, emoji: '🍱' }, { name: '电影票', unit: '张', price: 50, emoji: '🎟️' }, { name: '好书', unit: '本', price: 80, emoji: '📖' }, { name: '新T恤', unit: '件', price: 150, emoji: '👕' }, { name: '机械键盘', unit: '个', price: 400, emoji: '⌨️' }, { name: '降噪耳机', unit: '副', price: 1500, emoji: '🎧' }, { name: '新款手机', unit: '部', price: 6000, emoji: '📱' }, { name: '短途旅行', unit: '次', price: 10000, emoji: '✈️' }
     ];
-    const LOCAL_STORAGE_KEY_RUNTIME = 'moyu_runtime_v3_local';
-    const LOCAL_STORAGE_KEY_SETTINGS = 'moyu_settings_v3_guest';
     const LOCAL_STORAGE_KEY_TOKEN = 'moyu_auth_token_v3';
 
     // --- API and Auth Logic ---
@@ -265,12 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return data.token;
     }
 
-    async function fetchSettingsAndRuntime(token) {
+    async function fetchInitialState(token) {
         if (!token) throw new Error("Token 为空。");
-
         const [settingsData, runtimeData] = await Promise.all([
             apiCall('settings', { headers: { 'Authorization': `Bearer ${token}` } }),
-            apiCall('runtime', { headers: { 'Authorization': `Bearer ${token}` } })
+            apiCall('runtime', { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
         state.auth.username = settingsData.username;
@@ -278,40 +267,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settingsData.settings) {
             state.settings = { ...state.settings, ...settingsData.settings };
         }
-
-        if (runtimeData.runtime) {
-            const { accumulatedMoyuSeconds, accumulatedOvertimeSeconds, isMoyuing, overtimeState, serverTimestamp } = runtimeData.runtime;
-            state.runtime.accumulatedMoyuSeconds = accumulatedMoyuSeconds || 0;
-            state.runtime.accumulatedOvertimeSeconds = accumulatedOvertimeSeconds || 0;
-            
-            if (isMoyuing && serverTimestamp) {
-                state.isMoyuing = true;
-                const offlineSeconds = (Date.now() - serverTimestamp) / 1000;
-                state.runtime.accumulatedMoyuSeconds += offlineSeconds > 0 ? offlineSeconds : 0;
-                state.moyuStartTime = Date.now();
-                if (timers.moyu) clearInterval(timers.moyu);
-                timers.moyu = setInterval(moyuTick, 1000);
-                dom.moyuBtn.textContent = '摸鱼中...';
-                dom.moyuBtn.classList.add('action-btn-pulse');
-            }
-            
-            if ((overtimeState === 'manual-running' || overtimeState === 'auto-running') && serverTimestamp) {
-                state.overtimeState = overtimeState;
-                const offlineSeconds = (Date.now() - serverTimestamp) / 1000;
-                state.runtime.accumulatedOvertimeSeconds += offlineSeconds > 0 ? offlineSeconds : 0;
-                state.overtimeStartTime = Date.now();
-                if (timers.overtime) clearInterval(timers.overtime);
-                timers.overtime = setInterval(overtimeTick, 1000);
-                dom.overtimeBtn.textContent = '加班中...';
-                dom.overtimeBtn.classList.add('action-btn-pulse');
-            }
-        }
+        
+        updateRuntimeState(runtimeData.runtime);
         
         recalculateMetrics();
         renderSettingsFromState();
         updateUIForLoginState();
         updateSyncStatus('success', '云端同步成功');
-        startRuntimeSync();
+        startPolling();
     }
 
     async function saveSettings() {
@@ -332,11 +295,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.settings.expenses = newExpenses;
         
         recalculateMetrics();
-        saveRuntimeState();
 
         if (!state.auth.isLoggedIn || !state.auth.token) {
-            localStorage.setItem(LOCAL_STORAGE_KEY_SETTINGS, JSON.stringify(state.settings));
-            updateSyncStatus('success', '已保存至本地');
+            // Guest mode logic can be added here if needed
             dom.mainSettingsPanel.classList.remove('open');
             return;
         }
@@ -359,60 +320,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function syncRuntimeState() {
-        if (!state.auth.isLoggedIn || !state.auth.token) return;
+    // --- Polling and State Update Logic ---
 
-        const runtimePayload = {
-            accumulatedMoyuSeconds: state.runtime.accumulatedMoyuSeconds + (state.isMoyuing ? (Date.now() - state.moyuStartTime) / 1000 : 0),
-            accumulatedOvertimeSeconds: state.runtime.accumulatedOvertimeSeconds + ((state.overtimeState === 'manual-running' || state.overtimeState === 'auto-running') ? (Date.now() - state.overtimeStartTime) / 1000 : 0),
-            isMoyuing: state.isMoyuing,
-            overtimeState: state.overtimeState,
-        };
+    function updateRuntimeState(runtime) {
+        if (!runtime) return;
+        
+        dom.moyuTime.textContent = formatTime(runtime.currentMoyuSeconds);
+        dom.overtimeDuration.textContent = formatTime(runtime.currentOvertimeSeconds);
+        
+        if (runtime.isMoyuing) {
+            dom.moyuBtn.textContent = '摸鱼中...';
+            dom.moyuBtn.classList.add('action-btn-pulse');
+        } else {
+            dom.moyuBtn.textContent = '开始摸鱼';
+            dom.moyuBtn.classList.remove('action-btn-pulse');
+        }
+        
+        if (runtime.isOvertime) {
+            dom.overtimeBtn.textContent = '加班中...';
+            dom.overtimeBtn.classList.add('action-btn-pulse');
+        } else {
+            dom.overtimeBtn.textContent = '开始加班';
+            dom.overtimeBtn.classList.remove('action-btn-pulse');
+        }
+        
+        state.isMoyuing = runtime.isMoyuing;
+        state.isOvertime = runtime.isOvertime;
+        
+        // Update income based on server-calculated time
+        dom.moyuIncome.textContent = `¥ ${(runtime.currentMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
+        let overtimeIncomeVal = 0;
+        if (state.settings.isPaidOvertime) {
+            overtimeIncomeVal = runtime.currentOvertimeSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
+        } else {
+            overtimeIncomeVal = runtime.currentOvertimeSeconds * state.salaryPerSecond * -1;
+        }
+        dom.overtimeIncome.textContent = `¥ ${overtimeIncomeVal.toFixed(2)}`;
+        dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncomeVal >= 0);
+        dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncomeVal < 0);
+    }
 
+    async function pollRuntimeState() {
+        if (!state.auth.isLoggedIn || !state.auth.token) {
+            stopPolling();
+            return;
+        }
         try {
-            await apiCall('runtime', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${state.auth.token}`
-                },
-                body: JSON.stringify(runtimePayload)
+            const data = await apiCall('runtime', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${state.auth.token}` }
             });
-            console.log('Runtime state synced successfully.');
+            updateRuntimeState(data.runtime);
         } catch (error) {
-            console.error('Failed to sync runtime state:', error.message);
+            console.error("Polling runtime state failed:", error.message);
+            updateSyncStatus('error', '同步中断');
         }
     }
 
-    function startRuntimeSync() {
-        if (timers.runtimeSync) clearInterval(timers.runtimeSync);
-        timers.runtimeSync = setInterval(syncRuntimeState, 15000);
+    function startPolling() {
+        stopPolling();
+        pollRuntimeState();
+        timers.runtimePoll = setInterval(pollRuntimeState, 5000);
     }
 
-    function stopRuntimeSync() {
-        if (timers.runtimeSync) clearInterval(timers.runtimeSync);
-        timers.runtimeSync = null;
+    function stopPolling() {
+        if (timers.runtimePoll) clearInterval(timers.runtimePoll);
+        timers.runtimePoll = null;
     }
 
     // --- Event Handlers ---
 
     async function handleAuthClick(action) {
         if (Tone.context.state !== 'running') await Tone.start();
-
         const username = dom.authUsername.value.trim();
         const password = dom.authPassword.value.trim();
         if (!username || !password) {
             dom.authError.textContent = '用户名和密码不能为空';
             return;
         }
-        
         dom.authError.textContent = '';
         dom.loginBtn.disabled = true;
         dom.registerBtn.disabled = true;
-
         try {
             const token = await authenticate(action, username, password);
-            await fetchSettingsAndRuntime(token);
+            await fetchInitialState(token);
             dom.authModal.classList.add('hidden');
         } catch (error) {
             dom.authError.textContent = error.message;
@@ -423,19 +414,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleLogout() {
-        if (!confirm('确定要登出吗？未同步的设置将会丢失。')) return;
-        
-        stopRuntimeSync();
+        if (!confirm('确定要登出吗？')) return;
+        stopPolling();
         state.auth.token = null;
         state.auth.username = null;
         state.auth.isLoggedIn = false;
         localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
-        
         state.settings = {
             startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
             expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
         };
-        
         recalculateMetrics();
         renderSettingsFromState();
         updateUIForLoginState();
@@ -443,138 +431,43 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.authModal.classList.remove('hidden');
     }
 
-    function handleMoyuToggle() {
-        state.isMoyuing = !state.isMoyuing;
-        if (state.isMoyuing) {
-            state.moyuStartTime = Date.now();
-            if (timers.moyu) clearInterval(timers.moyu);
-            timers.moyu = setInterval(moyuTick, 1000);
-            dom.moyuBtn.textContent = '摸鱼中...';
-            dom.moyuBtn.classList.add('action-btn-pulse');
-            if(Tone.context.state === 'running') sounds.moyuStart.triggerAttackRelease("C3", "8n");
-        } else {
-            clearInterval(timers.moyu);
-            timers.moyu = null;
-            const elapsedSeconds = (Date.now() - state.moyuStartTime) / 1000;
-            state.runtime.accumulatedMoyuSeconds += elapsedSeconds;
-            dom.moyuBtn.textContent = '开始摸鱼';
-            dom.moyuBtn.classList.remove('action-btn-pulse');
-            if(Tone.context.state === 'running') sounds.stop.triggerAttackRelease("G4", "8n");
+    async function handleTimerToggle(type) {
+        const isMoyu = type === 'moyu';
+        const btn = isMoyu ? dom.moyuBtn : dom.overtimeBtn;
+        const isRunning = btn.textContent.includes('中...');
+        const route = isRunning ? (isMoyu ? 'stopMoyu' : 'stopOvertime') : (isMoyu ? 'startMoyu' : 'startOvertime');
+
+        if (!isMoyu && btn.disabled) return;
+
+        try {
+            const data = await apiCall('runtime', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.auth.token}` },
+                body: JSON.stringify({ route })
+            });
+            updateRuntimeState(data);
+        } catch (error) {
+            updateSyncStatus('error', `操作失败: ${error.message}`);
         }
-        saveRuntimeState();
-        syncRuntimeState();
     }
 
-    function handleOvertimeToggle() {
-        if (dom.overtimeBtn.disabled) return;
-        const isRunning = state.overtimeState === 'manual-running' || state.overtimeState === 'auto-running';
-        if (isRunning) {
-            clearInterval(timers.overtime);
-            timers.overtime = null;
-            const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
-            state.runtime.accumulatedOvertimeSeconds += elapsedSeconds;
-            state.overtimeState = 'paused';
-            dom.overtimeBtn.textContent = '继续加班';
-            dom.overtimeBtn.classList.remove('action-btn-pulse');
-            if(Tone.context.state === 'running') sounds.stop.triggerAttackRelease("A4", "8n");
-        } else {
-            state.overtimeStartTime = Date.now();
-            if (timers.overtime) clearInterval(timers.overtime);
-            timers.overtime = setInterval(overtimeTick, 1000);
-            state.overtimeState = 'manual-running';
-            dom.overtimeBtn.textContent = '加班中...';
-            dom.overtimeBtn.classList.add('action-btn-pulse');
-            if(Tone.context.state === 'running') sounds.overtimeStart.triggerAttackRelease("E4", "8n");
+    async function resetDay() {
+        if (!confirm('确定要开启新的一天吗？所有计时器数据都将被重置。')) return;
+        try {
+            const data = await apiCall('runtime', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.auth.token}` },
+                body: JSON.stringify({ route: 'resetDay' })
+            });
+            updateRuntimeState(data);
+            mainTick();
+            alert('新的一天开始了！');
+        } catch (error) {
+            updateSyncStatus('error', `重置失败: ${error.message}`);
         }
-        saveRuntimeState();
-        syncRuntimeState();
-    }
-
-    function handleSetOvertime() {
-        const hours = parseFloat(dom.manualOvertimeHours.value) || 0;
-        const minutes = parseFloat(dom.manualOvertimeMinutes.value) || 0;
-
-        if (hours < 0 || minutes < 0 || minutes >= 60) {
-            alert('请输入有效的小时和分钟数（分钟应在0-59之间）！');
-            return;
-        }
-        
-        if (timers.overtime) {
-            clearInterval(timers.overtime);
-            timers.overtime = null;
-        }
-        state.overtimeState = 'paused';
-        state.runtime.accumulatedOvertimeSeconds = (hours * 3600) + (minutes * 60);
-        dom.overtimeBtn.textContent = '继续加班';
-        dom.overtimeBtn.classList.remove('action-btn-pulse');
-        overtimeTick();
-        saveRuntimeState();
-        syncRuntimeState();
-        alert(`加班时长已设定为 ${hours} 小时 ${minutes} 分钟。`);
-        dom.manualOvertimeHours.value = '';
-        dom.manualOvertimeMinutes.value = '';
-    }
-
-    function resetDay() {
-        if (!confirm('确定要开启新的一天吗？所有计时器数据都将被重置。')) {
-            return;
-        }
-        clearInterval(timers.moyu);
-        timers.moyu = null;
-        clearInterval(timers.overtime);
-        timers.overtime = null;
-
-        state.isMoyuing = false;
-        state.runtime.accumulatedMoyuSeconds = 0;
-        state.overtimeState = 'disabled';
-        state.runtime.accumulatedOvertimeSeconds = 0;
-        state.offDutyTimeReached = false;
-        state.runtime.overtimeAutoStartedToday = false;
-        state.unlockedRewardCount = 0;
-
-        dom.moyuTime.textContent = formatTime(0);
-        dom.moyuIncome.textContent = '¥ 0.00';
-        dom.moyuBtn.textContent = '开始摸鱼';
-        dom.moyuBtn.classList.remove('action-btn-pulse');
-
-        dom.overtimeDuration.textContent = formatTime(0);
-        dom.overtimeIncome.textContent = '¥ 0.00';
-        dom.overtimeBtn.textContent = '开始加班';
-        dom.overtimeBtn.classList.remove('action-btn-pulse');
-        
-        saveRuntimeState();
-        syncRuntimeState();
-        mainTick();
-        alert('新的一天开始了！');
     }
 
     // --- Core Logic & UI Functions ---
-
-    function moyuTick() {
-        const elapsedSeconds = (Date.now() - state.moyuStartTime) / 1000;
-        const totalSeconds = state.runtime.accumulatedMoyuSeconds + elapsedSeconds;
-        dom.moyuTime.textContent = formatTime(totalSeconds);
-        dom.moyuIncome.textContent = `¥ ${(totalSeconds * state.salaryPerSecond).toFixed(2)}`;
-    }
-
-    function overtimeTick() {
-        let totalSeconds = state.runtime.accumulatedOvertimeSeconds;
-        if (state.overtimeState === 'manual-running' || state.overtimeState === 'auto-running') {
-            const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
-            totalSeconds += elapsedSeconds;
-        }
-        
-        dom.overtimeDuration.textContent = formatTime(totalSeconds);
-        let overtimeIncome = 0;
-        if (state.settings.isPaidOvertime) {
-            overtimeIncome = totalSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
-        } else {
-            overtimeIncome = totalSeconds * state.salaryPerSecond * -1;
-        }
-        dom.overtimeIncome.textContent = `¥ ${overtimeIncome.toFixed(2)}`;
-        dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncome >= 0);
-        dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncome < 0);
-    }
 
     function formatTime(s) {
         if (s < 0) s = 0;
@@ -606,23 +499,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const { settings } = state;
         const todayStartDate = new Date(now.toDateString() + ' ' + settings.startTime);
         const todayEndDate = new Date(now.toDateString() + ' ' + settings.endTime);
-
         let moneyEarnedToday = 0;
         if (now > todayStartDate) {
             const workSeconds = (Math.min(now, todayEndDate) - todayStartDate) / 1000;
             moneyEarnedToday = workSeconds * state.salaryPerSecond;
         }
-
-        let positiveOvertimePay = 0;
-        if (settings.isPaidOvertime) {
-            let currentOvertimeSeconds = state.runtime.accumulatedOvertimeSeconds;
-            if (state.overtimeState === 'manual-running' || state.overtimeState === 'auto-running') {
-                currentOvertimeSeconds += (Date.now() - state.overtimeStartTime) / 1000;
-            }
-            positiveOvertimePay = currentOvertimeSeconds * state.salaryPerSecond * settings.overtimeMultiplier;
-        }
         
-        const totalMoney = moneyEarnedToday + positiveOvertimePay;
+        // 总收益现在只计算工作时间内的，加班收益由服务器实时数据决定
+        const totalMoney = moneyEarnedToday;
         const netSurplus = totalMoney - state.dailyExpense;
 
         dom.moneyEarned.textContent = `¥ ${totalMoney.toFixed(2)}`;
@@ -647,7 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const { settings } = state;
         const now = new Date();
         let workDaysInMonth;
-        
         if (settings.workSystem === 'auto') {
             const year = now.getFullYear(); const month = now.getMonth();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -663,13 +546,10 @@ document.addEventListener('DOMContentLoaded', () => {
             workDaysInMonth = parseFloat(settings.workSystem);
         }
         if (workDaysInMonth <= 0) workDaysInMonth = 1;
-
         const [startH, startM] = settings.startTime.split(':').map(Number);
         const [endH, endM] = settings.endTime.split(':').map(Number);
         const totalWorkHours = (endH - startH) + (endM - startM) / 60;
-        
         state.salaryPerSecond = totalWorkHours > 0 ? (settings.monthlySalary / workDaysInMonth / totalWorkHours / 3600) : 0;
-        
         state.dailyExpense = settings.expenses.reduce((total, expense) => {
             const amount = parseFloat(expense.amount) || 0;
             return total + (expense.period === 'monthly' ? (amount / workDaysInMonth) : amount);
@@ -697,35 +577,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function saveRuntimeState() {
-        const runtimeData = {
-            lastUpdateDate: new Date().toLocaleDateString(),
-            accumulatedMoyuSeconds: state.runtime.accumulatedMoyuSeconds,
-            accumulatedOvertimeSeconds: state.runtime.accumulatedOvertimeSeconds,
-            overtimeState: state.overtimeState,
-            overtimeAutoStartedToday: state.runtime.overtimeAutoStartedToday,
-        };
-        localStorage.setItem(LOCAL_STORAGE_KEY_RUNTIME, JSON.stringify(runtimeData));
-    }
-
     function loadState() {
         const token = localStorage.getItem(LOCAL_STORAGE_KEY_TOKEN);
         if (token) {
             state.auth.token = token;
-        }
-        const savedRuntime = localStorage.getItem(LOCAL_STORAGE_KEY_RUNTIME);
-        if (savedRuntime) {
-            const loadedRuntime = JSON.parse(savedRuntime);
-            const today = new Date().toLocaleDateString();
-            if (loadedRuntime.lastUpdateDate === today) {
-                state.runtime = { ...state.runtime, ...loadedRuntime };
-            }
-        }
-        if (!state.auth.isLoggedIn) {
-            const savedSettings = localStorage.getItem(LOCAL_STORAGE_KEY_SETTINGS);
-            if (savedSettings) {
-                state.settings = { ...state.settings, ...JSON.parse(savedSettings) };
-            }
         }
     }
     
@@ -766,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.auth.token) {
             try {
                 updateSyncStatus('syncing', '自动登录中...', true);
-                await fetchSettingsAndRuntime(state.auth.token);
+                await fetchInitialState(state.auth.token);
                 dom.authModal.classList.add('hidden');
             } catch (error) {
                 console.error("自动登录失败:", error.message);
@@ -787,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.authModal.classList.add('hidden');
         });
         dom.logoutBtn.addEventListener('click', handleLogout);
-        dom.syncBtn.addEventListener('click', () => fetchSettingsAndRuntime(state.auth.token));
+        dom.syncBtn.addEventListener('click', () => fetchInitialState(state.auth.token));
         dom.saveSettingsBtn.addEventListener('click', saveSettings);
         dom.toggleMainSettingsBtn.addEventListener('click', () => dom.mainSettingsPanel.classList.toggle('open'));
         dom.toggleOvertimeSettingsBtn.addEventListener('click', () => dom.overtimeSettingsSection.classList.toggle('open'));
@@ -795,10 +650,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.expenseList.addEventListener('click', e => { if (e.target.closest('.delete-expense-btn')) e.target.closest('[data-id]').remove(); });
         dom.workSystem.addEventListener('change', updateSettingsUIVisibility);
         dom.paidOvertimeToggle.addEventListener('change', updateSettingsUIVisibility);
-        dom.moyuBtn.addEventListener('click', handleMoyuToggle);
-        dom.overtimeBtn.addEventListener('click', handleOvertimeToggle);
+        dom.moyuBtn.addEventListener('click', () => handleTimerToggle('moyu'));
+        dom.overtimeBtn.addEventListener('click', () => handleTimerToggle('overtime'));
         dom.resetDayBtn.addEventListener('click', resetDay);
-        dom.setOvertimeBtn.addEventListener('click', handleSetOvertime);
+        // dom.setOvertimeBtn.addEventListener('click', handleSetOvertime); // This feature is complex with server-side timing
         
         timers.main = setInterval(mainTick, 1000);
         mainTick();
