@@ -1,75 +1,75 @@
 import { Redis } from '@upstash/redis';
-import * as bcrypt from 'bcrypt-ts';
 
 export const config = {
   runtime: 'edge',
 };
 
-// --- 初始化 Redis 客户端 ---
-// Redis.fromEnv() 会自动从 process.env 读取 UPSTASH_REDIS_REST_URL 和 UPSTASH_REDIS_REST_TOKEN
-// Vercel 在连接 KV 存储时，会自动创建这些变量（或者等价的 KV_... 和 REDIS_... 变量）
-// 为了保险起见，我们让它同时能识别 Vercel KV 的环境变量
 const redis = Redis.fromEnv({
     url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
     token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
 });
 
-const SALT_ROUNDS = 10;
+// --- 增加带重试的 getUsernameByToken 函数 ---
+async function getUsernameByTokenWithRetry(token, retries = 3, delay = 100) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const username = await redis.get(`token:${token}`);
+            if (username) {
+                // 成功获取，立即返回
+                console.log(`Attempt ${i + 1}: Successfully found username for token.`);
+                return username;
+            }
+            // 未找到，打印警告，准备重试
+            console.warn(`Attempt ${i + 1}: Username not found for token. Retrying in ${delay}ms...`);
+        } catch (error) {
+            // 如果 redis 命令本身出错，也打印并重试
+            console.error(`Attempt ${i + 1}: Redis error`, error);
+        }
+        // 等待一小段时间再进行下一次尝试
+        if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    // 所有重试都失败后，返回 null
+    console.error(`All ${retries} retries failed to find username for token.`);
+    return null;
+}
 
 export default async function handler(request) {
     const headers = { 'Content-Type': 'application/json' };
 
-    if (request.method !== 'POST') {
+    if (request.method !== 'GET' && request.method !== 'POST') {
         return new Response(JSON.stringify({ message: 'Method Not Allowed' }), { status: 405, headers });
     }
 
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ message: '未提供授权 Token' }), { status: 401, headers });
+    }
+    const token = authHeader.split(' ')[1];
+
+    // --- 使用带重试的函数 ---
+    const username = await getUsernameByTokenWithRetry(token);
+    if (!username) {
+        // 即使重试后依然失败，我们返回一个明确的 403 错误，而不是让它变成 404
+        return new Response(JSON.stringify({ message: '无效或过期的 Token (after retries)' }), { status: 403, headers });
+    }
+
+    const settingsKey = `settings:${username}`;
+
     try {
-        const { action, username, password } = await request.json();
-
-        if (!username || !password || !action) {
-            return new Response(JSON.stringify({ message: '缺少参数' }), { status: 400, headers });
+        if (request.method === 'GET') {
+            const settings = await redis.get(settingsKey);
+            return new Response(JSON.stringify({ username, settings: settings || null }), { status: 200, headers });
         }
 
-        const userKey = `user:${username}`;
-        const tokenKeyPrefix = 'token:';
-
-        if (action === 'register') {
-            const existingUser = await redis.get(userKey);
-            if (existingUser) {
-                return new Response(JSON.stringify({ message: '用户名已存在' }), { status: 409, headers });
-            }
-
-            const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-            const token = crypto.randomUUID();
-            
-            // 使用 redis.set()
-            await redis.set(userKey, { passwordHash });
-            await redis.set(`${tokenKeyPrefix}${token}`, username);
-
-            return new Response(JSON.stringify({ message: '注册成功', token }), { status: 201, headers });
+        if (request.method === 'POST') {
+            const settingsData = await request.json();
+            await redis.set(settingsKey, settingsData);
+            return new Response(JSON.stringify({ message: '设置已保存至云端' }), { status: 200, headers });
         }
-
-        if (action === 'login') {
-            const user = await redis.get(userKey);
-            if (!user) {
-                return new Response(JSON.stringify({ message: '用户名或密码错误' }), { status: 401, headers });
-            }
-
-            const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-            if (!passwordMatch) {
-                return new Response(JSON.stringify({ message: '用户名或密码错误' }), { status: 401, headers });
-            }
-
-            const token = crypto.randomUUID();
-            await redis.set(`${tokenKeyPrefix}${token}`, username);
-
-            return new Response(JSON.stringify({ message: '登录成功', token }), { status: 200, headers });
-        }
-
-        return new Response(JSON.stringify({ message: '无效的操作' }), { status: 400, headers });
-
     } catch (error) {
-        console.error('Auth API Handler Error:', error);
+        console.error(`API logic error for user ${username}. Method: ${request.method}. Error:`, error);
         return new Response(JSON.stringify({ message: '服务器内部错误' }), { status: 500, headers });
     }
 }
