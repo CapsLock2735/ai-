@@ -234,7 +234,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Refactored API and Auth Logic ---
 
     async function apiCall(endpoint, options = {}) {
-        const response = await fetch(endpoint, options);
+        // **MODIFICATION**: Use the new single API endpoint
+        const url = `/api?route=${endpoint}`;
+        const response = await fetch(url, options);
+        
         let data;
         try {
             data = await response.json();
@@ -256,7 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         };
-        const data = await apiCall('/api/auth', options);
+        // **MODIFICATION**: Call 'auth' route
+        const data = await apiCall('auth', options);
         state.auth.token = data.token;
         localStorage.setItem(LOCAL_STORAGE_KEY_TOKEN, data.token);
         return data.token;
@@ -270,7 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` },
         };
-        const data = await apiCall('/api/settings', options);
+        // **MODIFICATION**: Call 'settings' route
+        const data = await apiCall('settings', options);
         state.auth.username = data.username;
         state.auth.isLoggedIn = true;
         if (data.settings) {
@@ -319,7 +324,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify(state.settings)
             };
-            await apiCall('/api/settings', options);
+            // **MODIFICATION**: Call 'settings' route
+            await apiCall('settings', options);
             updateSyncStatus('success', '已同步至云端');
         } catch (error) {
             updateSyncStatus('error', `保存失败: ${error.message}`);
@@ -364,7 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
         state.auth.isLoggedIn = false;
         localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
         
-        // Reset settings to default
         state.settings = {
             startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
             expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
