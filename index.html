@@ -231,7 +231,151 @@ document.addEventListener('DOMContentLoaded', () => {
     const LOCAL_STORAGE_KEY_SETTINGS = 'moyu_settings_v3_guest';
     const LOCAL_STORAGE_KEY_TOKEN = 'moyu_auth_token_v3';
 
-    // --- Core Logic Functions ---
+    // --- Refactored API and Auth Logic ---
+
+    async function apiCall(endpoint, options = {}) {
+        const response = await fetch(endpoint, options);
+        // 尝试解析JSON，如果失败则抛出带有响应文本的错误
+        let data;
+        try {
+            data = await response.json();
+        } catch (e) {
+            const text = await response.text();
+            throw new Error(`服务器响应不是有效的JSON: ${text}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(data.message || `请求失败，状态码: ${response.status}`);
+        }
+        return data;
+    }
+
+    async function authenticate(action, username, password) {
+        const payload = { action, username, password };
+        const options = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        };
+        const data = await apiCall('/api/auth', options);
+        state.auth.token = data.token;
+        localStorage.setItem(LOCAL_STORAGE_KEY_TOKEN, data.token);
+        return data.token;
+    }
+
+    async function fetchSettings(token) {
+        if (!token) {
+            throw new Error("无法获取设置，因为 Token 为空。");
+        }
+        const options = {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` },
+        };
+        const data = await apiCall('/api/settings', options);
+        state.auth.username = data.username;
+        state.auth.isLoggedIn = true;
+        if (data.settings) {
+            state.settings = { ...state.settings, ...data.settings };
+        }
+        recalculateMetrics();
+        renderSettingsFromState();
+        updateUIForLoginState();
+        updateSyncStatus('success', '云端同步成功');
+    }
+
+    async function saveSettings() {
+        // 从表单收集数据
+        state.settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
+        state.settings.workSystem = dom.workSystem.value;
+        state.settings.customWorkDays = parseFloat(dom.customWorkDays.value) || 22;
+        state.settings.startTime = dom.startTime.value;
+        state.settings.endTime = dom.endTime.value;
+        state.settings.isPaidOvertime = dom.paidOvertimeToggle.checked;
+        state.settings.overtimeMultiplier = parseFloat(dom.overtimeMultiplier.value) || 1.5;
+        const newExpenses = [];
+        dom.expenseList.querySelectorAll('[data-id]').forEach(node => {
+            newExpenses.push({
+                id: node.dataset.id, name: node.querySelector('.expense-name').value,
+                amount: parseFloat(node.querySelector('.expense-amount').value) || 0, period: node.querySelector('.expense-period').value
+            });
+        });
+        state.settings.expenses = newExpenses;
+        
+        recalculateMetrics();
+        saveRuntimeState();
+
+        if (!state.auth.isLoggedIn || !state.auth.token) {
+            localStorage.setItem(LOCAL_STORAGE_KEY_SETTINGS, JSON.stringify(state.settings));
+            updateSyncStatus('success', '已保存至本地');
+            dom.mainSettingsPanel.classList.remove('open');
+            return;
+        }
+
+        updateSyncStatus('syncing', '保存至云端...', true);
+        try {
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.auth.token}`
+                },
+                body: JSON.stringify(state.settings)
+            };
+            await apiCall('/api/settings', options);
+            updateSyncStatus('success', '已同步至云端');
+        } catch (error) {
+            updateSyncStatus('error', `保存失败: ${error.message}`);
+        } finally {
+            dom.mainSettingsPanel.classList.remove('open');
+        }
+    }
+
+    // --- Event Handlers ---
+
+    async function handleAuthClick(action) {
+        if (Tone.context.state !== 'running') await Tone.start();
+
+        const username = dom.authUsername.value.trim();
+        const password = dom.authPassword.value.trim();
+        if (!username || !password) {
+            dom.authError.textContent = '用户名和密码不能为空';
+            return;
+        }
+        
+        dom.authError.textContent = '';
+        dom.loginBtn.disabled = true;
+        dom.registerBtn.disabled = true;
+
+        try {
+            const token = await authenticate(action, username, password);
+            await fetchSettings(token);
+            dom.authModal.classList.add('hidden');
+        } catch (error) {
+            dom.authError.textContent = error.message;
+        } finally {
+            dom.loginBtn.disabled = false;
+            dom.registerBtn.disabled = false;
+        }
+    }
+
+    function handleLogout() {
+        if (!confirm('确定要登出吗？未同步的设置将会丢失。')) return;
+        
+        state.auth.token = null;
+        state.auth.username = null;
+        state.auth.isLoggedIn = false;
+        localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
+        
+        loadState(); 
+        recalculateMetrics();
+        renderSettingsFromState();
+        updateUIForLoginState();
+        mainTick();
+        dom.authModal.classList.remove('hidden');
+    }
+
+    // --- Core Logic & UI Functions ---
+
     function formatTime(s) {
         if (s < 0) s = 0;
         const h = Math.floor(s / 3600).toString().padStart(2, '0');
@@ -291,7 +435,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (now >= todayEndDate && !state.offDutyTimeReached) {
             state.offDutyTimeReached = true;
-            // handleAutoOvertimeStart(now, todayEndDate); // This function is not defined, let's simplify
             dom.overtimeBtn.disabled = false;
             dom.overtimeBtn.classList.remove('cursor-not-allowed', 'opacity-50');
         } else if (now < todayEndDate) {
@@ -300,32 +443,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function moyuTick() {
-        const elapsedSeconds = (Date.now() - state.moyuStartTime) / 1000;
-        const totalSeconds = state.runtime.accumulatedMoyuSeconds + elapsedSeconds;
-        dom.moyuTime.textContent = formatTime(totalSeconds);
-        dom.moyuIncome.textContent = `¥ ${(totalSeconds * state.salaryPerSecond).toFixed(2)}`;
-    }
-
-    function overtimeTick() {
-        let totalSeconds = state.runtime.accumulatedOvertimeSeconds;
-        if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
-            const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
-            totalSeconds += elapsedSeconds;
-        }
-        
-        dom.overtimeDuration.textContent = formatTime(totalSeconds);
-        let overtimeIncome = 0;
-        if (state.settings.isPaidOvertime) {
-            overtimeIncome = totalSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
-        } else {
-            overtimeIncome = totalSeconds * state.salaryPerSecond * -1;
-        }
-        dom.overtimeIncome.textContent = `¥ ${overtimeIncome.toFixed(2)}`;
-        dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncome >= 0);
-        dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncome < 0);
-    }
-    
     function recalculateMetrics() {
         const { settings } = state;
         const now = new Date();
@@ -359,7 +476,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 0);
     }
 
-    // --- Authentication and Cloud Sync Logic ---
     function updateSyncStatus(status, message, isSpinning = false) {
         const icon = isSpinning 
             ? `<svg class="h-4 w-4 sync-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5"/></svg>`
@@ -367,125 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<svg class="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`
             : `<svg class="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
         dom.syncStatus.innerHTML = `${icon}<span>${message}</span>`;
-    }
-
-    async function handleAuth(action) {
-        // Resume audio context on user gesture
-        if (Tone.context.state !== 'running') {
-            await Tone.start();
-        }
-
-        const username = dom.authUsername.value.trim();
-        const password = dom.authPassword.value.trim();
-        if (!username || !password) {
-            dom.authError.textContent = '用户名和密码不能为空';
-            return;
-        }
-        dom.authError.textContent = '';
-        dom.loginBtn.disabled = true;
-        dom.registerBtn.disabled = true;
-
-        try {
-            const response = await fetch('/api/auth', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, username, password }),
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || '操作失败');
-            }
-            
-            state.auth.token = data.token;
-            localStorage.setItem(LOCAL_STORAGE_KEY_TOKEN, data.token);
-            await fetchSettingsFromCloud();
-            dom.authModal.classList.add('hidden');
-
-        } catch (error) {
-            dom.authError.textContent = error.message;
-        } finally {
-            dom.loginBtn.disabled = false;
-            dom.registerBtn.disabled = false;
-        }
-    }
-
-    function handleLogout() {
-        if (!confirm('确定要登出吗？未同步的设置将会丢失。')) return;
-        
-        state.auth.token = null;
-        state.auth.username = null;
-        state.auth.isLoggedIn = false;
-        localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
-        
-        loadState(); 
-        recalculateMetrics();
-        renderSettingsFromState();
-        updateUIForLoginState();
-        mainTick();
-    }
-
-    async function fetchSettingsFromCloud() {
-        if (!state.auth.token) return;
-        
-        updateSyncStatus('syncing', '同步中...', true);
-        try {
-            const response = await fetch('/api/settings', {
-                method: 'GET',
-                headers: { 'Authorization': `Bearer ${state.auth.token}` }
-            });
-
-            if (response.status === 403) {
-                handleLogout();
-                alert('登录已过期，请重新登录。');
-                dom.authModal.classList.remove('hidden');
-                return;
-            }
-
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.message || '获取失败');
-
-            state.auth.username = data.username;
-            state.auth.isLoggedIn = true;
-            if (data.settings) {
-                state.settings = { ...state.settings, ...data.settings };
-                recalculateMetrics();
-                renderSettingsFromState();
-                mainTick();
-                updateSyncStatus('success', '云端同步成功');
-            } else {
-                updateSyncStatus('success', '欢迎, 云端无配置');
-                await saveSettingsToCloud();
-            }
-            updateUIForLoginState();
-
-        } catch (error) {
-            updateSyncStatus('error', `同步失败: ${error.message}`);
-        }
-    }
-
-    async function saveSettingsToCloud() {
-        if (!state.auth.isLoggedIn || !state.auth.token) {
-            localStorage.setItem(LOCAL_STORAGE_KEY_SETTINGS, JSON.stringify(state.settings));
-            updateSyncStatus('success', '已保存至本地');
-            return;
-        }
-
-        updateSyncStatus('syncing', '保存至云端...', true);
-        try {
-            const response = await fetch('/api/settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${state.auth.token}`
-                },
-                body: JSON.stringify(state.settings)
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.message || '保存失败');
-            updateSyncStatus('success', '已同步至云端');
-        } catch (error) {
-            updateSyncStatus('error', `保存失败: ${error.message}`);
-        }
     }
 
     function updateUIForLoginState() {
@@ -500,7 +497,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- State and Settings Functions ---
     function saveRuntimeState() {
         const runtimeData = {
             lastUpdateDate: new Date().toLocaleDateString(),
@@ -533,31 +529,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.settings = { ...state.settings, ...JSON.parse(savedSettings) };
             }
         }
-    }
-
-    function handleSaveSettings() {
-        state.settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
-        state.settings.workSystem = dom.workSystem.value;
-        state.settings.customWorkDays = parseFloat(dom.customWorkDays.value) || 22;
-        state.settings.startTime = dom.startTime.value;
-        state.settings.endTime = dom.endTime.value;
-        state.settings.isPaidOvertime = dom.paidOvertimeToggle.checked;
-        state.settings.overtimeMultiplier = parseFloat(dom.overtimeMultiplier.value) || 1.5;
-        
-        const newExpenses = [];
-        dom.expenseList.querySelectorAll('[data-id]').forEach(node => {
-            newExpenses.push({
-                id: node.dataset.id, name: node.querySelector('.expense-name').value,
-                amount: parseFloat(node.querySelector('.expense-amount').value) || 0, period: node.querySelector('.expense-period').value
-            });
-        });
-        state.settings.expenses = newExpenses;
-
-        recalculateMetrics();
-        saveRuntimeState();
-        saveSettingsToCloud();
-        updateSettingsUIVisibility();
-        dom.mainSettingsPanel.classList.remove('open');
     }
     
     function renderSettingsFromState() {
@@ -598,27 +569,32 @@ document.addEventListener('DOMContentLoaded', () => {
         loadState();
 
         if (state.auth.token) {
-            await fetchSettingsFromCloud();
+            try {
+                updateSyncStatus('syncing', '自动登录中...', true);
+                await fetchSettings(state.auth.token);
+                dom.authModal.classList.add('hidden');
+            } catch (error) {
+                console.error("自动登录失败:", error.message);
+                state.auth.token = null;
+                localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
+                updateUIForLoginState();
+                updateSyncStatus('error', '自动登录失败');
+                dom.authModal.classList.remove('hidden');
+            }
         } else {
             dom.authModal.classList.remove('hidden');
         }
         
-        recalculateMetrics();
-        renderSettingsFromState();
-        updateUIForLoginState();
-
-        // Event Listeners
-        dom.loginBtn.addEventListener('click', () => handleAuth('login'));
-        dom.registerBtn.addEventListener('click', () => handleAuth('register'));
+        // 绑定事件
+        dom.loginBtn.addEventListener('click', () => handleAuthClick('login'));
+        dom.registerBtn.addEventListener('click', () => handleAuthClick('register'));
         dom.guestModeBtn.addEventListener('click', async () => {
-            if (Tone.context.state !== 'running') {
-                await Tone.start();
-            }
+            if (Tone.context.state !== 'running') await Tone.start();
             dom.authModal.classList.add('hidden');
         });
         dom.logoutBtn.addEventListener('click', handleLogout);
-        dom.syncBtn.addEventListener('click', fetchSettingsFromCloud);
-        dom.saveSettingsBtn.addEventListener('click', handleSaveSettings);
+        dom.syncBtn.addEventListener('click', () => fetchSettings(state.auth.token));
+        dom.saveSettingsBtn.addEventListener('click', saveSettings);
         dom.toggleMainSettingsBtn.addEventListener('click', () => dom.mainSettingsPanel.classList.toggle('open'));
         dom.toggleOvertimeSettingsBtn.addEventListener('click', () => dom.overtimeSettingsSection.classList.toggle('open'));
         dom.addExpenseBtn.addEventListener('click', () => addExpenseRow());
