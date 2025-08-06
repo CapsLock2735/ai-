@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上班摸鱼赚钱计算器 - 云同步版</title>
+    <title>摸鱼计算器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -196,10 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
         salaryPerSecond: 0, dailyExpense: 0, unlockedRewardCount: 0,
         isMoyuing: false, isOvertime: false,
         offDutyTimeReached: false,
-        // These properties store the authoritative start times from the server
         serverMoyuStartTime: null,
         serverOvertimeStartTime: null,
-        // These store the base accumulated seconds from the server
         baseMoyuSeconds: 0,
         baseOvertimeSeconds: 0,
         settings: {
@@ -353,12 +351,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.overtimeBtn.classList.remove('action-btn-pulse');
         }
 
-        // Start or stop the local display timer based on the authoritative server state
         if (state.isMoyuing || state.isOvertime) {
             startLocalDisplayTimer();
         } else {
             stopLocalDisplayTimer();
-            // Ensure final state is displayed correctly
             updateLocalDisplay();
         }
     }
@@ -373,7 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'GET',
                 headers: { 'Authorization': `Bearer ${state.auth.token}` }
             });
-            // This will recalibrate the local timer with authoritative data
             updateRuntimeState(data.runtime);
         } catch (error) {
             console.error("Polling runtime state failed:", error.message);
@@ -384,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function startPolling() {
         stopPolling();
         pollRuntimeState();
-        timers.runtimePoll = setInterval(pollRuntimeState, 7000); // Poll every 7 seconds for calibration
+        timers.runtimePoll = setInterval(pollRuntimeState, 7000);
     }
 
     function stopPolling() {
@@ -421,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startLocalDisplayTimer() {
-        stopLocalDisplayTimer();
+        if (timers.localDisplay) return; // Prevent multiple timers
         timers.localDisplay = setInterval(updateLocalDisplay, 1000);
     }
 
@@ -482,7 +477,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!isMoyu && btn.disabled) return;
 
-        // Optimistic UI update for instant feedback
         btn.textContent = isRunning ? (isMoyu ? '开始摸鱼' : '开始加班') : (isMoyu ? '摸鱼中...' : '加班中...');
         btn.classList.toggle('action-btn-pulse', !isRunning);
 
@@ -495,8 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateRuntimeState(data);
         } catch (error) {
             updateSyncStatus('error', `操作失败: ${error.message}`);
-            // Revert UI on failure
-            btn.textContent = isRunning ? '摸鱼中...' : (isMoyu ? '开始摸鱼' : '开始加班');
+            btn.textContent = isRunning ? (isMoyu ? '摸鱼中...' : '加班中...') : (isMoyu ? '开始摸鱼' : '开始加班');
             btn.classList.toggle('action-btn-pulse', isRunning);
         }
     }
@@ -702,7 +695,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.moyuBtn.addEventListener('click', () => handleTimerToggle('moyu'));
         dom.overtimeBtn.addEventListener('click', () => handleTimerToggle('overtime'));
         dom.resetDayBtn.addEventListener('click', resetDay);
-        // dom.setOvertimeBtn is not handled by server-side timing yet.
         
         timers.main = setInterval(mainTick, 1000);
         mainTick();
