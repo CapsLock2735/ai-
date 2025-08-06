@@ -234,7 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Refactored API and Auth Logic ---
 
     async function apiCall(endpoint, options = {}) {
-        // **MODIFICATION**: Use the new single API endpoint
         const url = `/api?route=${endpoint}`;
         const response = await fetch(url, options);
         
@@ -259,7 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         };
-        // **MODIFICATION**: Call 'auth' route
         const data = await apiCall('auth', options);
         state.auth.token = data.token;
         localStorage.setItem(LOCAL_STORAGE_KEY_TOKEN, data.token);
@@ -274,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` },
         };
-        // **MODIFICATION**: Call 'settings' route
         const data = await apiCall('settings', options);
         state.auth.username = data.username;
         state.auth.isLoggedIn = true;
@@ -324,7 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify(state.settings)
             };
-            // **MODIFICATION**: Call 'settings' route
             await apiCall('settings', options);
             updateSyncStatus('success', '已同步至云端');
         } catch (error) {
@@ -382,7 +378,138 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.authModal.classList.remove('hidden');
     }
 
+    function handleMoyuToggle() {
+        state.isMoyuing = !state.isMoyuing;
+        if (state.isMoyuing) {
+            state.moyuStartTime = Date.now();
+            if (timers.moyu) clearInterval(timers.moyu);
+            timers.moyu = setInterval(moyuTick, 1000);
+            dom.moyuBtn.textContent = '摸鱼中...';
+            dom.moyuBtn.classList.add('action-btn-pulse');
+            if(Tone.context.state === 'running') sounds.moyuStart.triggerAttackRelease("C3", "8n");
+        } else {
+            clearInterval(timers.moyu);
+            timers.moyu = null;
+            const elapsedSeconds = (Date.now() - state.moyuStartTime) / 1000;
+            state.runtime.accumulatedMoyuSeconds += elapsedSeconds;
+            dom.moyuBtn.textContent = '开始摸鱼';
+            dom.moyuBtn.classList.remove('action-btn-pulse');
+            if(Tone.context.state === 'running') sounds.stop.triggerAttackRelease("G4", "8n");
+        }
+        saveRuntimeState();
+    }
+
+    function handleOvertimeToggle() {
+        if (dom.overtimeBtn.disabled) return;
+        switch (state.overtimeState) {
+            case 'auto-running':
+            case 'manual-running':
+                clearInterval(timers.overtime);
+                timers.overtime = null;
+                const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
+                state.runtime.accumulatedOvertimeSeconds += elapsedSeconds;
+                state.overtimeState = 'paused';
+                dom.overtimeBtn.textContent = '继续加班';
+                dom.overtimeBtn.classList.remove('action-btn-pulse');
+                if(Tone.context.state === 'running') sounds.stop.triggerAttackRelease("A4", "8n");
+                break;
+            case 'paused':
+            case 'disabled': // Allow starting from disabled state
+                state.overtimeStartTime = Date.now();
+                if (timers.overtime) clearInterval(timers.overtime);
+                timers.overtime = setInterval(overtimeTick, 1000);
+                state.overtimeState = 'manual-running';
+                dom.overtimeBtn.textContent = '加班中...';
+                dom.overtimeBtn.classList.add('action-btn-pulse');
+                if(Tone.context.state === 'running') sounds.overtimeStart.triggerAttackRelease("E4", "8n");
+                break;
+        }
+        saveRuntimeState();
+    }
+
+    function handleSetOvertime() {
+        const hours = parseFloat(dom.manualOvertimeHours.value) || 0;
+        const minutes = parseFloat(dom.manualOvertimeMinutes.value) || 0;
+
+        if (hours < 0 || minutes < 0 || minutes >= 60) {
+            alert('请输入有效的小时和分钟数（分钟应在0-59之间）！');
+            return;
+        }
+        
+        if (timers.overtime) {
+            clearInterval(timers.overtime);
+            timers.overtime = null;
+        }
+        state.overtimeState = 'paused';
+        state.runtime.accumulatedOvertimeSeconds = (hours * 3600) + (minutes * 60);
+        dom.overtimeBtn.textContent = '继续加班';
+        dom.overtimeBtn.classList.remove('action-btn-pulse');
+        overtimeTick();
+        saveRuntimeState();
+        alert(`加班时长已设定为 ${hours} 小时 ${minutes} 分钟。`);
+        dom.manualOvertimeHours.value = '';
+        dom.manualOvertimeMinutes.value = '';
+    }
+
+    function resetDay() {
+        if (!confirm('确定要开启新的一天吗？所有计时器数据都将被重置。')) {
+            return;
+        }
+        clearInterval(timers.moyu);
+        timers.moyu = null;
+        clearInterval(timers.overtime);
+        timers.overtime = null;
+
+        state.isMoyuing = false;
+        state.runtime.accumulatedMoyuSeconds = 0;
+        state.overtimeState = 'disabled';
+        state.runtime.accumulatedOvertimeSeconds = 0;
+        state.offDutyTimeReached = false;
+        state.runtime.overtimeAutoStartedToday = false;
+        state.unlockedRewardCount = 0;
+
+        dom.moyuTime.textContent = formatTime(0);
+        dom.moyuIncome.textContent = '¥ 0.00';
+        dom.moyuBtn.textContent = '开始摸鱼';
+        dom.moyuBtn.classList.remove('action-btn-pulse');
+
+        dom.overtimeDuration.textContent = formatTime(0);
+        dom.overtimeIncome.textContent = '¥ 0.00';
+        dom.overtimeBtn.textContent = '开始加班';
+        dom.overtimeBtn.classList.remove('action-btn-pulse');
+        
+        saveRuntimeState();
+        mainTick();
+        alert('新的一天开始了！');
+    }
+
     // --- Core Logic & UI Functions ---
+
+    function moyuTick() {
+        const elapsedSeconds = (Date.now() - state.moyuStartTime) / 1000;
+        const totalSeconds = state.runtime.accumulatedMoyuSeconds + elapsedSeconds;
+        dom.moyuTime.textContent = formatTime(totalSeconds);
+        dom.moyuIncome.textContent = `¥ ${(totalSeconds * state.salaryPerSecond).toFixed(2)}`;
+    }
+
+    function overtimeTick() {
+        let totalSeconds = state.runtime.accumulatedOvertimeSeconds;
+        if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
+            const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
+            totalSeconds += elapsedSeconds;
+        }
+        
+        dom.overtimeDuration.textContent = formatTime(totalSeconds);
+        let overtimeIncome = 0;
+        if (state.settings.isPaidOvertime) {
+            overtimeIncome = totalSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
+        } else {
+            overtimeIncome = totalSeconds * state.salaryPerSecond * -1;
+        }
+        dom.overtimeIncome.textContent = `¥ ${overtimeIncome.toFixed(2)}`;
+        dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncome >= 0);
+        dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncome < 0);
+    }
 
     function formatTime(s) {
         if (s < 0) s = 0;
@@ -609,6 +736,12 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.expenseList.addEventListener('click', e => { if (e.target.closest('.delete-expense-btn')) e.target.closest('[data-id]').remove(); });
         dom.workSystem.addEventListener('change', updateSettingsUIVisibility);
         dom.paidOvertimeToggle.addEventListener('change', updateSettingsUIVisibility);
+        
+        // **FIX**: Re-add missing event listeners
+        dom.moyuBtn.addEventListener('click', handleMoyuToggle);
+        dom.overtimeBtn.addEventListener('click', handleOvertimeToggle);
+        dom.resetDayBtn.addEventListener('click', resetDay);
+        dom.setOvertimeBtn.addEventListener('click', handleSetOvertime);
         
         timers.main = setInterval(mainTick, 1000);
         mainTick();
