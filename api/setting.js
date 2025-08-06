@@ -1,26 +1,20 @@
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 
 export const config = {
   runtime: 'edge',
 };
 
+const redis = Redis.fromEnv({
+    url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
+});
+
 async function getUsernameByToken(token) {
-    // 增加日志，确认函数被调用
-    console.log('Attempting to get username for a token.');
-    if (!token) {
-        console.error('getUsernameByToken received a null or undefined token.');
-        return null;
-    }
+    if (!token) return null;
     try {
-        const username = await kv.get(`token:${token}`);
-        if (!username) {
-            console.warn(`Token not found in KV store. Token: ${token}`);
-            return null;
-        }
-        console.log(`Successfully found username: ${username} for token.`);
-        return username;
+        return await redis.get(`token:${token}`);
     } catch (error) {
-        console.error(`KV error in getUsernameByToken for token ${token}:`, error);
+        console.error(`Redis error in getUsernameByToken for token ${token}:`, error);
         return null;
     }
 }
@@ -28,7 +22,6 @@ async function getUsernameByToken(token) {
 export default async function handler(request) {
     const headers = { 'Content-Type': 'application/json' };
 
-    // 检查请求方法，如果不是 GET 或 POST，提前拒绝
     if (request.method !== 'GET' && request.method !== 'POST') {
         return new Response(JSON.stringify({ message: 'Method Not Allowed' }), { status: 405, headers });
     }
@@ -48,15 +41,13 @@ export default async function handler(request) {
 
     try {
         if (request.method === 'GET') {
-            console.log(`Handling GET request for user: ${username}`);
-            const settings = await kv.get(settingsKey);
+            const settings = await redis.get(settingsKey);
             return new Response(JSON.stringify({ username, settings: settings || null }), { status: 200, headers });
         }
 
         if (request.method === 'POST') {
-            console.log(`Handling POST request for user: ${username}`);
             const settingsData = await request.json();
-            await kv.set(settingsKey, settingsData);
+            await redis.set(settingsKey, settingsData);
             return new Response(JSON.stringify({ message: '设置已保存至云端' }), { status: 200, headers });
         }
     } catch (error) {
