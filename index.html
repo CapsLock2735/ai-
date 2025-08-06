@@ -234,7 +234,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- API and Auth Logic ---
 
     async function apiCall(endpoint, options = {}) {
-        const url = `/api?route=${endpoint}`;
+        let url = `/api?route=${endpoint}`;
+        if (!options.method || options.method.toUpperCase() === 'GET') {
+            url += `&_=${Date.now()}`;
+        }
         const response = await fetch(url, options);
         let data;
         try {
@@ -277,13 +280,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (runtimeData.runtime) {
-            const { accumulatedMoyuSeconds, accumulatedOvertimeSeconds, isMoyuing, overtimeState, moyuStartTime, overtimeStartTime } = runtimeData.runtime;
+            const { accumulatedMoyuSeconds, accumulatedOvertimeSeconds, isMoyuing, overtimeState, serverTimestamp } = runtimeData.runtime;
             state.runtime.accumulatedMoyuSeconds = accumulatedMoyuSeconds || 0;
             state.runtime.accumulatedOvertimeSeconds = accumulatedOvertimeSeconds || 0;
             
-            if (isMoyuing && moyuStartTime) {
+            if (isMoyuing && serverTimestamp) {
                 state.isMoyuing = true;
-                const offlineSeconds = (Date.now() - moyuStartTime) / 1000;
+                const offlineSeconds = (Date.now() - serverTimestamp) / 1000;
                 state.runtime.accumulatedMoyuSeconds += offlineSeconds > 0 ? offlineSeconds : 0;
                 state.moyuStartTime = Date.now();
                 if (timers.moyu) clearInterval(timers.moyu);
@@ -292,9 +295,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 dom.moyuBtn.classList.add('action-btn-pulse');
             }
             
-            if ((overtimeState === 'manual-running' || overtimeState === 'auto-running') && overtimeStartTime) {
+            if ((overtimeState === 'manual-running' || overtimeState === 'auto-running') && serverTimestamp) {
                 state.overtimeState = overtimeState;
-                const offlineSeconds = (Date.now() - overtimeStartTime) / 1000;
+                const offlineSeconds = (Date.now() - serverTimestamp) / 1000;
                 state.runtime.accumulatedOvertimeSeconds += offlineSeconds > 0 ? offlineSeconds : 0;
                 state.overtimeStartTime = Date.now();
                 if (timers.overtime) clearInterval(timers.overtime);
@@ -364,8 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
             accumulatedOvertimeSeconds: state.runtime.accumulatedOvertimeSeconds + ((state.overtimeState === 'manual-running' || state.overtimeState === 'auto-running') ? (Date.now() - state.overtimeStartTime) / 1000 : 0),
             isMoyuing: state.isMoyuing,
             overtimeState: state.overtimeState,
-            moyuStartTime: state.isMoyuing ? Date.now() : null,
-            overtimeStartTime: (state.overtimeState === 'manual-running' || state.overtimeState === 'auto-running') ? Date.now() : null,
         };
 
         try {
@@ -712,7 +713,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (token) {
             state.auth.token = token;
         }
-
         const savedRuntime = localStorage.getItem(LOCAL_STORAGE_KEY_RUNTIME);
         if (savedRuntime) {
             const loadedRuntime = JSON.parse(savedRuntime);
@@ -721,7 +721,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.runtime = { ...state.runtime, ...loadedRuntime };
             }
         }
-        
         if (!state.auth.isLoggedIn) {
             const savedSettings = localStorage.getItem(LOCAL_STORAGE_KEY_SETTINGS);
             if (savedSettings) {
@@ -739,7 +738,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.endTime.value = settings.endTime;
         dom.paidOvertimeToggle.checked = settings.isPaidOvertime;
         dom.overtimeMultiplier.value = settings.overtimeMultiplier;
-        
         dom.expenseList.innerHTML = '';
         if (!settings.expenses || settings.expenses.length === 0) {
             dom.expenseList.innerHTML = `<p class="text-center text-gray-500 text-sm">暂无开销项</p>`;
@@ -763,10 +761,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.overtimeMultiplierWrapper.classList.toggle('hidden', !dom.paidOvertimeToggle.checked);
     }
 
-    // --- Initialization ---
     async function init() {
         loadState();
-
         if (state.auth.token) {
             try {
                 updateSyncStatus('syncing', '自动登录中...', true);
@@ -784,7 +780,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.authModal.classList.remove('hidden');
         }
         
-        // 绑定事件
         dom.loginBtn.addEventListener('click', () => handleAuthClick('login'));
         dom.registerBtn.addEventListener('click', () => handleAuthClick('register'));
         dom.guestModeBtn.addEventListener('click', async () => {
@@ -800,7 +795,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.expenseList.addEventListener('click', e => { if (e.target.closest('.delete-expense-btn')) e.target.closest('[data-id]').remove(); });
         dom.workSystem.addEventListener('change', updateSettingsUIVisibility);
         dom.paidOvertimeToggle.addEventListener('change', updateSettingsUIVisibility);
-        
         dom.moyuBtn.addEventListener('click', handleMoyuToggle);
         dom.overtimeBtn.addEventListener('click', handleOvertimeToggle);
         dom.resetDayBtn.addEventListener('click', resetDay);
