@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上班摸鱼赚钱计算器</title>
+    <title>摸鱼计算器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -35,19 +35,55 @@
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px); }
+        .sync-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="text-white flex items-center justify-center min-h-screen p-4">
 
-    <div id="user-status-area" class="fixed top-6 right-6 z-10 flex items-center gap-2 text-sm"></div>
+    <!-- 认证模态框 -->
+    <div id="auth-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4 border border-gray-700">
+            <h2 id="auth-title" class="text-2xl font-bold text-center text-white">登录以同步数据</h2>
+            <p id="auth-error" class="text-red-400 text-sm text-center h-5"></p>
+            <div class="space-y-3">
+                <input type="text" id="auth-username" placeholder="用户名" class="w-full bg-gray-700 p-3 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
+                <input type="password" id="auth-password" placeholder="密码" class="w-full bg-gray-700 p-3 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
+            </div>
+            <div class="flex gap-4">
+                <button id="login-btn" class="flex-1 bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold py-2 rounded-md transition-colors">登录</button>
+                <button id="register-btn" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-md transition-colors">注册</button>
+            </div>
+            <button id="guest-mode-btn" class="w-full mt-2 text-sm text-gray-400 hover:text-white">以游客模式继续 (数据仅本地保存)</button>
+        </div>
+    </div>
 
     <div class="w-full max-w-2xl mx-auto space-y-6">
+        <!-- 用户状态和同步 -->
+        <div id="user-status-bar" class="bg-gray-800/50 ring-1 ring-gray-700/50 p-2 rounded-xl flex items-center justify-between text-sm">
+            <div id="user-info" class="flex items-center gap-2 text-gray-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0012 11z" clip-rule="evenodd" /></svg>
+                <span id="username-display">游客模式</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="sync-status" class="text-gray-400 flex items-center gap-1.5">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                    <span>已保存</span>
+                </span>
+                <button id="sync-btn" title="手动同步" class="text-gray-400 hover:text-white transition-colors hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 4l5 5M20 20l-5-5" /></svg>
+                </button>
+                <button id="logout-btn" class="bg-red-600/50 hover:bg-red-600 text-white px-3 py-1 rounded-md hidden">登出</button>
+            </div>
+        </div>
+
         <!-- 主看板 -->
         <div class="bg-gray-800 p-6 rounded-xl shadow-2xl relative">
             <button id="toggle-main-settings-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button>
             <div class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
-                    <div><h2 id="money-earned-title" class="text-sm font-bold text-gray-400">今日总收益</h2><p id="money-earned" class="text-4xl lg:text-5xl font-black mt-2 money-text">¥ 0.00</p></div>
+                    <div><h2 class="text-sm font-bold text-gray-400">今日总收益</h2><p id="money-earned" class="text-4xl lg:text-5xl font-black mt-2 money-text">¥ 0.00</p></div>
                     <div><h2 class="text-sm font-bold text-gray-400">下班倒计时</h2><p id="countdown-display" class="text-4xl lg:text-5xl font-black mt-2 countdown-text">00:00:00</p></div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center border-t border-gray-700 pt-6">
@@ -55,6 +91,7 @@
                     <div><h2 class="text-sm font-bold text-gray-400">摸鱼“赚”到</h2><p id="moyu-income" class="text-3xl lg:text-4xl font-black mt-2 text-red-400">¥ 0.00</p></div>
                 </div>
             </div>
+
             <div id="action-buttons" class="mt-8 flex items-center justify-around gap-4">
                  <button id="moyu-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-all duration-300 shadow-lg text-lg">开始摸鱼</button>
                  <button id="overtime-btn" class="flex-1 bg-lime-600 hover:bg-lime-700 text-white font-bold py-3 rounded-xl transition-all duration-300 shadow-lg text-lg">开始加班</button>
@@ -75,47 +112,6 @@
                          <div class="grid grid-cols-2 gap-4"><input type="time" id="start-time" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none"><input type="time" id="end-time" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none"></div>
                     </div>
                 </div>
-                
-                <!-- 专业薪资计算模块 -->
-                <div>
-                    <h3 class="text-lg font-bold text-center mb-2 text-gray-300">高级薪资设置</h3>
-                    <div class="bg-gray-900/50 p-3 rounded-lg space-y-4">
-                        <label class="flex items-center justify-between cursor-pointer">
-                            <span class="font-medium text-white">启用精准税后计算</span>
-                            <div class="relative">
-                                <input type="checkbox" id="enable-precise-salary" class="sr-only peer">
-                                <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-focus:ring-4 peer-focus:ring-amber-500/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                            </div>
-                        </label>
-                        <div id="precise-salary-settings" class="settings-section space-y-4 border-t border-gray-700">
-                            <div>
-                                <label for="city-select" class="text-sm font-bold text-gray-400 block mb-1">工作城市</label>
-                                <select id="city-select" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none"></select>
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="text-sm font-bold text-gray-400 block mb-1">社保基数</label>
-                                    <input type="number" id="social-security-base" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
-                                </div>
-                                <div>
-                                    <label class="text-sm font-bold text-gray-400 block mb-1">公积金基数</label>
-                                    <input type="number" id="housing-fund-base" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="text-sm font-bold text-gray-400 block mb-1">公积金比例(%)</label>
-                                    <input type="number" id="housing-fund-rate" value="12" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
-                                </div>
-                                <div>
-                                    <label class="text-sm font-bold text-gray-400 block mb-1">专项附加扣除</label>
-                                    <input type="number" id="special-deductions" value="1000" placeholder="租房、养老等" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <div>
                     <h3 class="text-lg font-bold text-center mb-2 text-gray-300">每日开销</h3>
                     <div class="bg-gray-900/50 p-3 rounded-lg"><div id="expense-list" class="space-y-2"></div><button id="add-expense-btn" class="mt-3 w-full text-sm bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 rounded-md transition-colors">+ 添加开销项</button></div>
@@ -124,6 +120,7 @@
             </div>
         </div>
 
+        <!-- 加班看板 -->
         <div id="overtime-board" class="bg-gray-800 p-6 rounded-xl shadow-2xl text-center relative">
             <button id="toggle-overtime-settings-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-start">
@@ -162,689 +159,549 @@
         </div>
     </div>
 
-    <div id="auth-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50 hidden">
-        <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm space-y-6 border border-gray-700">
-            <h2 class="text-2xl font-bold text-center text-white">登录或注册</h2>
-            <p class="text-center text-gray-400 text-sm">输入一个用户名即可云端同步你的设置，无需密码。</p>
-            <div>
-                <input type="text" id="username-input" placeholder="输入你的专属用户名" class="w-full bg-gray-700 p-3 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none text-center">
-                <p id="auth-error" class="text-red-400 text-sm mt-2 text-center h-4"></p>
-            </div>
-            <div class="flex gap-4">
-                <button id="auth-submit-btn" class="flex-1 bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold py-3 rounded-md transition-colors">进入</button>
-                <button id="auth-cancel-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-md transition-colors">稍后</button>
-            </div>
-        </div>
-    </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- DOM Elements ---
+    const dom = {
+        moneyEarned: document.getElementById('money-earned'), countdown: document.getElementById('countdown-display'),
+        moyuTime: document.getElementById('moyu-time'), moyuIncome: document.getElementById('moyu-income'),
+        netSurplus: document.getElementById('net-surplus'), rewardListContainer: document.getElementById('reward-list-container'),
+        rewardTitle: document.getElementById('reward-title'), 
+        moyuBtn: document.getElementById('moyu-btn'),
+        overtimeBtn: document.getElementById('overtime-btn'), overtimeBoard: document.getElementById('overtime-board'),
+        overtimeDuration: document.getElementById('overtime-duration'), overtimeIncome: document.getElementById('overtime-income'),
+        mainSettingsPanel: document.getElementById('main-settings-panel'), toggleMainSettingsBtn: document.getElementById('toggle-main-settings-btn'),
+        overtimeSettingsSection: document.getElementById('overtime-settings-section'), toggleOvertimeSettingsBtn: document.getElementById('toggle-overtime-settings-btn'),
+        saveSettingsBtn: document.getElementById('save-settings-btn'), monthlySalary: document.getElementById('monthly-salary'),
+        workSystem: document.getElementById('work-system'), customDaysWrapper: document.getElementById('custom-days-wrapper'),
+        customWorkDays: document.getElementById('custom-work-days'), startTime: document.getElementById('start-time'),
+        endTime: document.getElementById('end-time'), expenseList: document.getElementById('expense-list'),
+        addExpenseBtn: document.getElementById('add-expense-btn'), paidOvertimeToggle: document.getElementById('paid-overtime-toggle'),
+        overtimeMultiplierWrapper: document.getElementById('overtime-multiplier-wrapper'), overtimeMultiplier: document.getElementById('overtime-multiplier'),
+        resetDayBtn: document.getElementById('reset-day-btn'),
+        manualOvertimeHours: document.getElementById('manual-overtime-hours'),
+        manualOvertimeMinutes: document.getElementById('manual-overtime-minutes'),
+        setOvertimeBtn: document.getElementById('set-overtime-btn'),
+        authModal: document.getElementById('auth-modal'), authTitle: document.getElementById('auth-title'),
+        authError: document.getElementById('auth-error'), authUsername: document.getElementById('auth-username'),
+        authPassword: document.getElementById('auth-password'), loginBtn: document.getElementById('login-btn'),
+        registerBtn: document.getElementById('register-btn'), guestModeBtn: document.getElementById('guest-mode-btn'),
+        userStatusBar: document.getElementById('user-status-bar'), userInfo: document.getElementById('user-info'),
+        usernameDisplay: document.getElementById('username-display'), syncStatus: document.getElementById('sync-status'),
+        syncBtn: document.getElementById('sync-btn'), logoutBtn: document.getElementById('logout-btn'),
+    };
 
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const dom = {
-            moneyEarned: document.getElementById('money-earned'), countdown: document.getElementById('countdown-display'),
-            moyuTime: document.getElementById('moyu-time'), moyuIncome: document.getElementById('moyu-income'),
-            netSurplus: document.getElementById('net-surplus'), rewardListContainer: document.getElementById('reward-list-container'),
-            rewardTitle: document.getElementById('reward-title'), 
-            moyuBtn: document.getElementById('moyu-btn'),
-            overtimeBtn: document.getElementById('overtime-btn'), overtimeBoard: document.getElementById('overtime-board'),
-            overtimeDuration: document.getElementById('overtime-duration'), overtimeIncome: document.getElementById('overtime-income'),
-            mainSettingsPanel: document.getElementById('main-settings-panel'), toggleMainSettingsBtn: document.getElementById('toggle-main-settings-btn'),
-            overtimeSettingsSection: document.getElementById('overtime-settings-section'), toggleOvertimeSettingsBtn: document.getElementById('toggle-overtime-settings-btn'),
-            saveSettingsBtn: document.getElementById('save-settings-btn'), monthlySalary: document.getElementById('monthly-salary'),
-            workSystem: document.getElementById('work-system'), customDaysWrapper: document.getElementById('custom-days-wrapper'),
-            customWorkDays: document.getElementById('custom-work-days'), startTime: document.getElementById('start-time'),
-            endTime: document.getElementById('end-time'), expenseList: document.getElementById('expense-list'),
-            addExpenseBtn: document.getElementById('add-expense-btn'), paidOvertimeToggle: document.getElementById('paid-overtime-toggle'),
-            overtimeMultiplierWrapper: document.getElementById('overtime-multiplier-wrapper'), overtimeMultiplier: document.getElementById('overtime-multiplier'),
-            resetDayBtn: document.getElementById('reset-day-btn'),
-            manualOvertimeHours: document.getElementById('manual-overtime-hours'),
-            manualOvertimeMinutes: document.getElementById('manual-overtime-minutes'),
-            setOvertimeBtn: document.getElementById('set-overtime-btn'),
-            authModal: document.getElementById('auth-modal'),
-            usernameInput: document.getElementById('username-input'),
-            authError: document.getElementById('auth-error'),
-            authSubmitBtn: document.getElementById('auth-submit-btn'),
-            authCancelBtn: document.getElementById('auth-cancel-btn'),
-            userStatusArea: document.getElementById('user-status-area'),
-            enablePreciseSalary: document.getElementById('enable-precise-salary'),
-            preciseSalarySettings: document.getElementById('precise-salary-settings'),
-            citySelect: document.getElementById('city-select'),
-            socialSecurityBase: document.getElementById('social-security-base'),
-            housingFundBase: document.getElementById('housing-fund-base'),
-            housingFundRate: document.getElementById('housing-fund-rate'),
-            specialDeductions: document.getElementById('special-deductions'),
-            moneyEarnedTitle: document.getElementById('money-earned-title'),
+    // --- State Management ---
+    const state = {
+        salaryPerSecond: 0, dailyExpense: 0, unlockedRewardCount: 0,
+        isMoyuing: false, isOvertime: false,
+        offDutyTimeReached: false,
+        serverMoyuStartTime: null,
+        serverOvertimeStartTime: null,
+        baseMoyuSeconds: 0,
+        baseOvertimeSeconds: 0,
+        settings: {
+            startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
+            expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
+        },
+        auth: {
+            token: null,
+            username: null,
+            isLoggedIn: false,
+        }
+    };
+
+    // --- Constants and Timers ---
+    const timers = { main: null, runtimePoll: null, localDisplay: null };
+    const sounds = {
+        moyuStart: new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
+        overtimeStart: new Tone.Synth({ oscillator: { type: 'square' } }).toDestination(),
+        stop: new Tone.Synth({ oscillator: { type: 'sine' } }).toDestination(),
+        rewardUnlock: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.2 } }).toDestination(),
+        offDuty: new Tone.Synth({ oscillator: { type: 'fatsawtooth' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
+    };
+    const productList = [
+        { name: '可乐', unit: '瓶', price: 3, emoji: '🥤' }, { name: '奶茶', unit: '杯', price: 15, emoji: '🧋' }, { name: '午餐', unit: '顿', price: 25, emoji: '🍱' }, { name: '电影票', unit: '张', price: 50, emoji: '🎟️' }, { name: '好书', unit: '本', price: 80, emoji: '📖' }, { name: '新T恤', unit: '件', price: 150, emoji: '👕' }, { name: '机械键盘', unit: '个', price: 400, emoji: '⌨️' }, { name: '降噪耳机', unit: '副', price: 1500, emoji: '🎧' }, { name: '新款手机', unit: '部', price: 6000, emoji: '📱' }, { name: '短途旅行', unit: '次', price: 10000, emoji: '✈️' }
+    ];
+    const LOCAL_STORAGE_KEY_TOKEN = 'moyu_auth_token_v3';
+
+    // --- API and Auth Logic ---
+
+    async function apiCall(endpoint, options = {}) {
+        let url = `/api?route=${endpoint}`;
+        if (!options.method || options.method.toUpperCase() === 'GET') {
+            url += `&_=${Date.now()}`;
+        }
+        const response = await fetch(url, options);
+        let data;
+        try {
+            data = await response.json();
+        } catch (e) {
+            const text = await response.text();
+            throw new Error(`服务器响应不是有效的JSON: ${text}`);
+        }
+        if (!response.ok) {
+            throw new Error(data.message || `请求失败，状态码: ${response.status}`);
+        }
+        return data;
+    }
+
+    async function authenticate(action, username, password) {
+        const payload = { action, username, password };
+        const options = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
         };
+        const data = await apiCall('auth', options);
+        state.auth.token = data.token;
+        localStorage.setItem(LOCAL_STORAGE_KEY_TOKEN, data.token);
+        return data.token;
+    }
 
-        const cityData = {
-            beijing: { name: '北京', ssMin: 6525, ssMax: 33891, hfMin: 2420, hfMax: 33891 },
-            shanghai: { name: '上海', ssMin: 7310, ssMax: 36549, hfMin: 2690, hfMax: 36549 },
-            guangzhou: { name: '广州', ssMin: 5208, ssMax: 26040, hfMin: 2300, hfMax: 28365 },
-            shenzhen: { name: '深圳', ssMin: 2360, ssMax: 38037, hfMin: 2360, hfMax: 41190 },
-            hangzhou: { name: '杭州', ssMin: 4462, ssMax: 24060, hfMin: 2580, hfMax: 24060 },
-            other: { name: '其他 (手动输入)', ssMin: 0, ssMax: Infinity, hfMin: 0, hfMax: Infinity }
-        };
+    async function fetchInitialState(token) {
+        if (!token) throw new Error("Token 为空。");
+        const [settingsData, runtimeData] = await Promise.all([
+            apiCall('settings', { headers: { 'Authorization': `Bearer ${token}` } }),
+            apiCall('runtime', { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
 
-        const state = {
-            user: { isLoggedIn: false, username: null, token: null },
-            settings: {
-                startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
-                expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
-                enablePreciseSalary: false,
-                city: 'hangzhou',
-                socialSecurityBase: null,
-                housingFundBase: null,
-                housingFundRate: 12,
-                specialDeductions: 1000,
-            },
-            salaryPerSecond: 0, dailyExpense: 0, unlockedRewardCount: 0,
-            isMoyuing: false, moyuStartTime: 0, accumulatedMoyuSeconds: 0,
-            overtimeState: 'disabled', overtimeStartTime: 0, accumulatedOvertimeSeconds: 0,
-            offDutyTimeReached: false, overtimeAutoStartedToday: false,
-            lastUpdateDate: null,
-        };
-
-        const timers = { main: null, moyu: null, overtime: null };
-        const sounds = {
-            moyuStart: new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination(),
-            overtimeStart: new Tone.Synth({ oscillator: { type: 'square' } }).toDestination(),
-            stop: new Tone.Synth({ oscillator: { type: 'sine' } }).toDestination(),
-            rewardUnlock: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.2 } }).toDestination(),
-            offDuty: new Tone.Synth({ oscillator: { type: 'fatsawtooth' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
-        };
-        const productList = [
-            { name: '可乐', unit: '瓶', price: 3, emoji: '🥤' }, { name: '奶茶', unit: '杯', price: 15, emoji: '🧋' }, { name: '午餐', unit: '顿', price: 25, emoji: '🍱' }, { name: '电影票', unit: '张', price: 50, emoji: '🎟️' }, { name: '好书', unit: '本', price: 80, emoji: '📖' }, { name: '新T恤', unit: '件', price: 150, emoji: '👕' }, { name: '机械键盘', unit: '个', price: 400, emoji: '⌨️' }, { name: '降噪耳机', unit: '副', price: 1500, emoji: '🎧' }, { name: '新款手机', unit: '部', price: 6000, emoji: '📱' }, { name: '短途旅行', unit: '次', price: 10000, emoji: '✈️' }
-        ];
-
-        async function apiRequest(endpoint, method = 'GET', body = null) {
-            const headers = { 'Content-Type': 'application/json' };
-            if (state.user.token) {
-                headers['Authorization'] = `Bearer ${state.user.token}`;
-            }
-            const options = { method, headers };
-            if (body) {
-                options.body = JSON.stringify(body);
-            }
-            try {
-                const response = await fetch(`/api/${endpoint}`, options);
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || `HTTP error! status: ${response.status}`);
-                }
-                return data;
-            } catch (error) {
-                console.error(`API request to ${endpoint} failed:`, error);
-                throw error;
-            }
-        }
-
-        async function handleLogin(username) {
-            try {
-                dom.authSubmitBtn.disabled = true;
-                dom.authSubmitBtn.textContent = '处理中...';
-                dom.authError.textContent = '';
-                const data = await apiRequest('auth', 'POST', { username });
-                state.user.isLoggedIn = true;
-                state.user.username = data.username;
-                state.user.token = data.token;
-                localStorage.setItem('moyuUserToken', data.token);
-                localStorage.setItem('moyuUsername', data.username);
-                dom.authModal.classList.add('hidden');
-                await loadSettings();
-                updateUserStatusUI();
-            } catch (error) {
-                dom.authError.textContent = error.message;
-            } finally {
-                dom.authSubmitBtn.disabled = false;
-                dom.authSubmitBtn.textContent = '进入';
-            }
-        }
-
-        function handleLogout() {
-            if (!confirm('确定要登出吗？未保存的设置将丢失。')) return;
-            state.user = { isLoggedIn: false, username: null, token: null };
-            localStorage.removeItem('moyuUserToken');
-            localStorage.removeItem('moyuUsername');
-            loadState();
-            applySettings();
-            updateUserStatusUI();
-            alert('已登出。');
-        }
-
-        async function loadSettings() {
-            if (state.user.isLoggedIn) {
-                try {
-                    console.log('Fetching settings from cloud...');
-                    const cloudSettings = await apiRequest('settings', 'GET');
-                    if (Object.keys(cloudSettings).length > 0) {
-                        state.settings = { ...state.settings, ...cloudSettings };
-                        console.log('Cloud settings loaded.');
-                    } else {
-                        console.log('No cloud settings found, using local/default.');
-                    }
-                } catch (error) {
-                    console.error('Failed to load cloud settings, using local version.', error);
-                    alert('无法从云端加载设置，将使用本地版本。');
-                }
-            }
-            applySettings();
-        }
-
-        async function saveSettingsToServer() {
-            if (!state.user.isLoggedIn) {
-                console.log('User not logged in, settings not saved to cloud.');
-                return;
-            }
-            try {
-                await apiRequest('settings', 'POST', state.settings);
-                console.log('Settings saved to cloud.');
-            } catch (error) {
-                console.error('Failed to save settings to cloud:', error);
-                alert('设置保存到云端失败！');
-            }
-        }
-
-        function saveState() {
-            const stateToSave = {
-                accumulatedMoyuSeconds: state.accumulatedMoyuSeconds,
-                accumulatedOvertimeSeconds: state.accumulatedOvertimeSeconds,
-                overtimeState: state.overtimeState,
-                lastUpdateDate: state.lastUpdateDate,
-                overtimeAutoStartedToday: state.overtimeAutoStartedToday,
-                settings: state.settings
-            };
-            localStorage.setItem('moyuDashboardState_v25_pro', JSON.stringify(stateToSave));
-        }
-
-        function loadState() {
-            const saved = localStorage.getItem('moyuDashboardState_v25_pro');
-            if (saved) {
-                const loadedState = JSON.parse(saved);
-                if (loadedState.settings) {
-                    state.settings = { ...state.settings, ...loadedState.settings };
-                }
-                Object.keys(loadedState).forEach(key => {
-                    if (key !== 'settings') {
-                        state[key] = loadedState[key];
-                    }
-                });
-            }
-            const today = new Date().toLocaleDateString();
-            if (state.lastUpdateDate !== today) {
-                state.accumulatedMoyuSeconds = 0;
-                state.accumulatedOvertimeSeconds = 0;
-                state.unlockedRewardCount = 0;
-                state.lastUpdateDate = today;
-                state.offDutyTimeReached = false;
-                state.overtimeState = 'disabled';
-                state.overtimeAutoStartedToday = false;
-            }
-            state.isMoyuing = false;
-            if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
-                state.overtimeState = 'paused';
-            }
-        }
-
-        function applySettings() {
-            renderSettingsFromState();
-            recalculateMetrics();
-            mainTick();
-            saveState();
-        }
-
-        async function handleSaveSettings() {
-            const { settings } = state;
-            settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
-            settings.workSystem = dom.workSystem.value;
-            settings.customWorkDays = parseFloat(dom.customWorkDays.value) || 22;
-            settings.startTime = dom.startTime.value;
-            settings.endTime = dom.endTime.value;
-            settings.isPaidOvertime = dom.paidOvertimeToggle.checked;
-            settings.overtimeMultiplier = parseFloat(dom.overtimeMultiplier.value) || 1.5;
-            
-            settings.enablePreciseSalary = dom.enablePreciseSalary.checked;
-            settings.city = dom.citySelect.value;
-            settings.socialSecurityBase = parseFloat(dom.socialSecurityBase.value) || null;
-            settings.housingFundBase = parseFloat(dom.housingFundBase.value) || null;
-            settings.housingFundRate = parseFloat(dom.housingFundRate.value) || 12;
-            settings.specialDeductions = parseFloat(dom.specialDeductions.value) || 0;
-
-            const newExpenses = [];
-            dom.expenseList.querySelectorAll('[data-id]').forEach(node => {
-                newExpenses.push({
-                    id: node.dataset.id, name: node.querySelector('.expense-name').value,
-                    amount: parseFloat(node.querySelector('.expense-amount').value) || 0, period: node.querySelector('.expense-period').value
-                });
-            });
-            settings.expenses = newExpenses;
-            applySettings();
-            await saveSettingsToServer();
-            dom.mainSettingsPanel.classList.remove('open');
-            alert('设置已应用！' + (state.user.isLoggedIn ? ' 并已同步到云端。' : ''));
-        }
-
-        function updateUserStatusUI() {
-            if (state.user.isLoggedIn) {
-                dom.userStatusArea.innerHTML = `
-                    <span class="text-amber-400 font-bold">${state.user.username}</span>
-                    <span class="text-gray-500">|</span>
-                    <button id="logout-btn" class="text-gray-400 hover:text-white transition-colors">登出</button>
-                `;
-                document.getElementById('logout-btn').addEventListener('click', handleLogout);
-            } else {
-                dom.userStatusArea.innerHTML = `
-                    <button id="login-prompt-btn" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-md text-white transition-colors text-sm">登录/注册</button>
-                `;
-                document.getElementById('login-prompt-btn').addEventListener('click', () => {
-                    dom.authModal.classList.remove('hidden');
-                    dom.usernameInput.focus();
-                });
-            }
-        }
-
-        function calculateTakeHomePay(preTaxSalary, settings) {
-            if (!settings.enablePreciseSalary) return preTaxSalary;
-
-            const city = cityData[settings.city];
-            if (!city) return preTaxSalary;
-
-            let ssBase = settings.socialSecurityBase || preTaxSalary;
-            ssBase = Math.max(city.ssMin, Math.min(city.ssMax, ssBase));
-
-            let hfBase = settings.housingFundBase || preTaxSalary;
-            hfBase = Math.max(city.hfMin, Math.min(city.hfMax, hfBase));
-
-            const pensionRate = 0.08;
-            const medicalRate = 0.02;
-            const unemploymentRate = 0.005;
-            const socialSecurityDeduction = ssBase * (pensionRate + medicalRate + unemploymentRate);
-
-            const housingFundRate = (settings.housingFundRate || 0) / 100;
-            const housingFundDeduction = hfBase * housingFundRate;
-
-            const taxThreshold = 5000;
-            const specialDeductions = settings.specialDeductions || 0;
-            const taxableIncome = preTaxSalary - socialSecurityDeduction - housingFundDeduction - taxThreshold - specialDeductions;
-
-            if (taxableIncome <= 0) {
-                return preTaxSalary - socialSecurityDeduction - housingFundDeduction;
-            }
-
-            const taxBrackets = [
-                { limit: 36000, rate: 0.03, deduction: 0 }, { limit: 144000, rate: 0.10, deduction: 2520 },
-                { limit: 300000, rate: 0.20, deduction: 16920 }, { limit: 420000, rate: 0.25, deduction: 31920 },
-                { limit: 660000, rate: 0.30, deduction: 52920 }, { limit: 960000, rate: 0.35, deduction: 85920 },
-                { limit: Infinity, rate: 0.45, deduction: 181920 }
-            ];
-            const annualTaxableIncome = taxableIncome * 12;
-            const bracket = taxBrackets.find(b => annualTaxableIncome <= b.limit);
-            const annualTax = annualTaxableIncome * bracket.rate - bracket.deduction;
-            const monthlyTax = annualTax / 12;
-            const takeHomePay = preTaxSalary - socialSecurityDeduction - housingFundDeduction - monthlyTax;
-            return takeHomePay > 0 ? takeHomePay : 0;
-        }
-
-        function recalculateMetrics() {
-            const { settings } = state;
-            const now = new Date();
-            let workDaysInMonth;
-            if (settings.workSystem === 'auto') {
-                const year = now.getFullYear(); const month = now.getMonth();
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                let weekdays = 0;
-                for (let day = 1; day <= daysInMonth; day++) {
-                    const dayOfWeek = new Date(year, month, day).getDay();
-                    if (dayOfWeek >= 1 && dayOfWeek <= 5) weekdays++;
-                }
-                workDaysInMonth = weekdays;
-            } else if (settings.workSystem === 'custom') {
-                workDaysInMonth = parseFloat(settings.customWorkDays) || 22;
-            } else {
-                workDaysInMonth = parseFloat(settings.workSystem);
-            }
-            if (workDaysInMonth <= 0) workDaysInMonth = 1;
-
-            const [startH, startM] = settings.startTime.split(':').map(Number);
-            const [endH, endM] = settings.endTime.split(':').map(Number);
-            const totalWorkHours = (endH - startH) + (endM - startM) / 60;
-
-            let effectiveMonthlySalary = settings.monthlySalary;
-            if (settings.enablePreciseSalary) {
-                effectiveMonthlySalary = calculateTakeHomePay(settings.monthlySalary, settings);
-                dom.moneyEarnedTitle.textContent = "今日税后收益";
-            } else {
-                dom.moneyEarnedTitle.textContent = "今日总收益";
-            }
-            
-            state.salaryPerSecond = totalWorkHours > 0 ? (effectiveMonthlySalary / workDaysInMonth / totalWorkHours / 3600) : 0;
-            state.dailyExpense = settings.expenses.reduce((total, expense) => {
-                const amount = parseFloat(expense.amount) || 0;
-                return total + (expense.period === 'monthly' ? (amount / workDaysInMonth) : amount);
-            }, 0);
-        }
-
-        function mainTick() {
-            const now = new Date();
-            const { settings } = state;
-            const todayStartDate = new Date(now.toDateString() + ' ' + settings.startTime);
-            const todayEndDate = new Date(now.toDateString() + ' ' + settings.endTime);
-            let moneyEarnedToday = 0;
-            if (now > todayStartDate) {
-                const workSeconds = (Math.min(now, todayEndDate) - todayStartDate) / 1000;
-                moneyEarnedToday = workSeconds * state.salaryPerSecond;
-            }
-            let positiveOvertimePay = 0;
-            if (settings.isPaidOvertime) {
-                let currentOvertimeSeconds = state.accumulatedOvertimeSeconds;
-                if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
-                    currentOvertimeSeconds += (Date.now() - state.overtimeStartTime) / 1000;
-                }
-                positiveOvertimePay = currentOvertimeSeconds * state.salaryPerSecond * settings.overtimeMultiplier;
-            }
-            const totalMoney = moneyEarnedToday + positiveOvertimePay;
-            const netSurplus = totalMoney - state.dailyExpense;
-            dom.moneyEarned.textContent = `¥ ${totalMoney.toFixed(2)}`;
-            dom.netSurplus.textContent = `¥ ${netSurplus.toFixed(2)}`;
-            let countdownSeconds = (now < todayStartDate) ? (todayStartDate - now) / 1000 : (todayEndDate - now) / 1000;
-            dom.countdown.textContent = countdownSeconds > 0 ? formatTime(countdownSeconds) : "已下班";
-            updateRewardList(netSurplus);
-            if (now >= todayEndDate && !state.offDutyTimeReached) {
-                state.offDutyTimeReached = true;
-                handleAutoOvertimeStart(now, todayEndDate);
-            } else if (now < todayEndDate) {
-                dom.overtimeBtn.disabled = true;
-                dom.overtimeBtn.classList.add('cursor-not-allowed', 'opacity-50');
-            }
-        }
-
-        function handleAutoOvertimeStart(now, todayEndDate, isRetroactive = false) {
-            dom.overtimeBtn.disabled = false;
-            dom.overtimeBtn.classList.remove('cursor-not-allowed', 'opacity-50');
-            if (isRetroactive) {
-                const retroactiveSeconds = (now - todayEndDate) / 1000;
-                state.accumulatedOvertimeSeconds = retroactiveSeconds;
-            }
-            state.overtimeState = 'auto-running';
-            state.overtimeStartTime = Date.now();
-            if (timers.overtime) clearInterval(timers.overtime);
-            timers.overtime = setInterval(overtimeTick, 1000);
-            dom.overtimeBtn.textContent = '已下班';
-            dom.overtimeBtn.classList.add('action-btn-pulse');
-            if (!isRetroactive) sounds.offDuty.triggerAttackRelease("C5", "8n");
-            state.overtimeAutoStartedToday = true;
-            saveState();
-        }
-
-        function moyuTick() {
-            const elapsedSeconds = (Date.now() - state.moyuStartTime) / 1000;
-            const totalSeconds = state.accumulatedMoyuSeconds + elapsedSeconds;
-            dom.moyuTime.textContent = formatTime(totalSeconds);
-            dom.moyuIncome.textContent = `¥ ${(totalSeconds * state.salaryPerSecond).toFixed(2)}`;
-        }
-
-        function overtimeTick() {
-            let totalSeconds = state.accumulatedOvertimeSeconds;
-            if (state.overtimeState === 'auto-running' || state.overtimeState === 'manual-running') {
-                const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
-                totalSeconds += elapsedSeconds;
-            }
-            dom.overtimeDuration.textContent = formatTime(totalSeconds);
-            let overtimeIncome = 0;
-            if (state.settings.isPaidOvertime) {
-                overtimeIncome = totalSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
-            } else {
-                overtimeIncome = totalSeconds * state.salaryPerSecond * -1;
-            }
-            dom.overtimeIncome.textContent = `¥ ${overtimeIncome.toFixed(2)}`;
-            dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncome >= 0);
-            dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncome < 0);
-        }
-
-        function handleMoyuToggle() {
-            state.isMoyuing = !state.isMoyuing;
-            if (state.isMoyuing) {
-                state.moyuStartTime = Date.now();
-                if (timers.moyu) clearInterval(timers.moyu);
-                timers.moyu = setInterval(moyuTick, 1000);
-                dom.moyuBtn.textContent = '摸鱼中...';
-                dom.moyuBtn.classList.add('action-btn-pulse');
-                sounds.moyuStart.triggerAttackRelease("C3", "8n");
-            } else {
-                clearInterval(timers.moyu);
-                timers.moyu = null;
-                const elapsedSeconds = (Date.now() - state.moyuStartTime) / 1000;
-                state.accumulatedMoyuSeconds += elapsedSeconds;
-                dom.moyuBtn.textContent = '开始摸鱼';
-                dom.moyuBtn.classList.remove('action-btn-pulse');
-                sounds.stop.triggerAttackRelease("G4", "8n");
-            }
-            saveState();
-        }
-
-        function handleOvertimeToggle() {
-            if (this.disabled) return;
-            switch (state.overtimeState) {
-                case 'auto-running':
-                case 'manual-running':
-                    clearInterval(timers.overtime);
-                    timers.overtime = null;
-                    const elapsedSeconds = (Date.now() - state.overtimeStartTime) / 1000;
-                    state.accumulatedOvertimeSeconds += elapsedSeconds;
-                    state.overtimeState = 'paused';
-                    dom.overtimeBtn.textContent = '继续加班';
-                    dom.overtimeBtn.classList.remove('action-btn-pulse');
-                    sounds.stop.triggerAttackRelease("A4", "8n");
-                    break;
-                case 'paused':
-                    state.overtimeStartTime = Date.now();
-                    if (timers.overtime) clearInterval(timers.overtime);
-                    timers.overtime = setInterval(overtimeTick, 1000);
-                    state.overtimeState = 'manual-running';
-                    dom.overtimeBtn.textContent = '加班中...';
-                    dom.overtimeBtn.classList.add('action-btn-pulse');
-                    sounds.overtimeStart.triggerAttackRelease("E4", "8n");
-                    break;
-            }
-            saveState();
-        }
-
-        function handleSetOvertime() {
-            const hours = parseFloat(dom.manualOvertimeHours.value) || 0;
-            const minutes = parseFloat(dom.manualOvertimeMinutes.value) || 0;
-            if (hours < 0 || minutes < 0 || minutes >= 60) {
-                alert('请输入有效的小时和分钟数（分钟应在0-59之间）！');
-                return;
-            }
-            if (timers.overtime) {
-                clearInterval(timers.overtime);
-                timers.overtime = null;
-            }
-            state.overtimeState = 'paused';
-            state.accumulatedOvertimeSeconds = (hours * 3600) + (minutes * 60);
-            dom.overtimeBtn.textContent = '继续加班';
-            dom.overtimeBtn.classList.remove('action-btn-pulse');
-            overtimeTick();
-            saveState();
-            alert(`加班时长已设定为 ${hours} 小时 ${minutes} 分钟。`);
-            dom.manualOvertimeHours.value = '';
-            dom.manualOvertimeMinutes.value = '';
-        }
-
-        function resetDay() {
-            if (!confirm('确定要开启新的一天吗？所有计时器数据都将被重置。')) return;
-            clearInterval(timers.moyu);
-            timers.moyu = null;
-            clearInterval(timers.overtime);
-            timers.overtime = null;
-            state.isMoyuing = false;
-            state.accumulatedMoyuSeconds = 0;
-            state.overtimeState = 'disabled';
-            state.accumulatedOvertimeSeconds = 0;
-            state.offDutyTimeReached = false;
-            state.overtimeAutoStartedToday = false;
-            state.unlockedRewardCount = 0;
-            dom.moyuTime.textContent = formatTime(0);
-            dom.moyuIncome.textContent = '¥ 0.00';
-            dom.moyuBtn.textContent = '开始摸鱼';
-            dom.moyuBtn.classList.remove('action-btn-pulse');
-            dom.overtimeDuration.textContent = formatTime(0);
-            dom.overtimeIncome.textContent = '¥ 0.00';
-            dom.overtimeBtn.textContent = '开始加班';
-            dom.overtimeBtn.classList.remove('action-btn-pulse');
-            saveState();
-            mainTick();
-            alert('新的一天开始了！');
-        }
-
-        function formatTime(s) {
-            if (s < 0) s = 0;
-            const h = Math.floor(s / 3600).toString().padStart(2, '0');
-            const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
-            const sec = Math.floor(s % 60).toString().padStart(2, '0');
-            return `${h}:${m}:${sec}`;
-        }
-
-        function updateRewardList(surplus) {
-            const affordable = productList.filter(p => surplus >= p.price);
-            if (affordable.length > state.unlockedRewardCount) {
-                sounds.rewardUnlock.triggerAttackRelease('C5', '8n', Tone.now());
-                dom.rewardTitle.classList.add('animate-pulse');
-                setTimeout(() => dom.rewardTitle.classList.remove('animate-pulse'), 1500);
-            }
-            state.unlockedRewardCount = affordable.length;
-            if (affordable.length === 0) {
-                dom.rewardListContainer.innerHTML = `<p class="text-gray-500 text-center col-span-2">还需努力哦 💪</p>`;
-            } else {
-                dom.rewardListContainer.innerHTML = affordable.reverse().map(p => 
-                    `<p class="text-white font-semibold text-sm truncate">${Math.floor(surplus / p.price)}${p.unit} ${p.name} ${p.emoji}</p>`
-                ).join('');
-            }
-        }
-
-        function renderSettingsFromState() {
-            const { settings } = state;
-            dom.monthlySalary.value = settings.monthlySalary;
-            dom.workSystem.value = settings.workSystem;
-            dom.customWorkDays.value = settings.customWorkDays;
-            dom.startTime.value = settings.startTime;
-            dom.endTime.value = settings.endTime;
-            dom.paidOvertimeToggle.checked = settings.isPaidOvertime;
-            dom.overtimeMultiplier.value = settings.overtimeMultiplier;
-            
-            dom.enablePreciseSalary.checked = settings.enablePreciseSalary;
-            dom.citySelect.value = settings.city;
-            dom.socialSecurityBase.value = settings.socialSecurityBase || '';
-            dom.housingFundBase.value = settings.housingFundBase || '';
-            dom.housingFundRate.value = settings.housingFundRate;
-            dom.specialDeductions.value = settings.specialDeductions;
-            
-            dom.expenseList.innerHTML = '';
-            if (settings.expenses.length === 0) {
-                dom.expenseList.innerHTML = `<p class="text-center text-gray-500 text-sm">暂无开销项</p>`;
-            } else {
-                settings.expenses.forEach(exp => addExpenseRow(exp));
-            }
-            updateSettingsUIVisibility();
-        }
-
-        function addExpenseRow(expense = { id: Date.now(), name: '', amount: 0, period: 'monthly' }) {
-            const el = document.createElement('div');
-            el.className = 'grid grid-cols-12 gap-2 items-center';
-            el.dataset.id = expense.id;
-            el.innerHTML = `<input type="text" value="${expense.name}" placeholder="开销名称" class="expense-name col-span-5 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"><input type="number" value="${expense.amount}" placeholder="金额" class="expense-amount col-span-3 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"><select class="expense-period col-span-3 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"><option value="monthly" ${expense.period === 'monthly' ? 'selected' : ''}>每月</option><option value="daily" ${expense.period === 'daily' ? 'selected' : ''}>每日</option></select><button class="delete-expense-btn col-span-1 text-red-500 hover:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
-            if (dom.expenseList.querySelector('p')) dom.expenseList.innerHTML = '';
-            dom.expenseList.appendChild(el);
-        }
-
-        function updateSettingsUIVisibility() {
-            const { settings } = state;
-            dom.customDaysWrapper.classList.toggle('hidden', settings.workSystem !== 'custom');
-            dom.overtimeMultiplierWrapper.classList.toggle('hidden', !settings.isPaidOvertime);
-            
-            const isPreciseEnabled = settings.enablePreciseSalary;
-            dom.preciseSalarySettings.classList.toggle('open', isPreciseEnabled);
-
-            const cityKey = settings.city;
-            const city = cityData[cityKey];
-            if (cityKey === 'other') {
-                dom.socialSecurityBase.placeholder = "请输入当地社保基数";
-                dom.housingFundBase.placeholder = "请输入当地公积金基数";
-            } else if (city) {
-                dom.socialSecurityBase.placeholder = `范围: ${city.ssMin} ~ ${city.ssMax}`;
-                dom.housingFundBase.placeholder = `范围: ${city.hfMin} ~ ${city.hfMax}`;
-            }
-        }
-
-        function populateCitySelector() {
-            dom.citySelect.innerHTML = Object.keys(cityData).map(key => 
-                `<option value="${key}">${cityData[key].name}</option>`
-            ).join('');
-        }
-
-        async function init() {
-            populateCitySelector();
-            loadState();
-            
-            const token = localStorage.getItem('moyuUserToken');
-            const username = localStorage.getItem('moyuUsername');
-            if (token && username) {
-                state.user.token = token;
-                state.user.username = username;
-                try {
-                    await apiRequest('settings', 'GET');
-                    state.user.isLoggedIn = true;
-                    console.log(`Logged in as ${username} from localStorage.`);
-                } catch (e) {
-                    console.log('Token invalid, logging out.');
-                    handleLogout();
-                }
-            }
-            updateUserStatusUI();
-            await loadSettings();
-            
-            dom.moyuBtn.addEventListener('click', handleMoyuToggle);
-            dom.overtimeBtn.addEventListener('click', handleOvertimeToggle);
-            dom.resetDayBtn.addEventListener('click', resetDay);
-            dom.setOvertimeBtn.addEventListener('click', handleSetOvertime);
-            dom.toggleMainSettingsBtn.addEventListener('click', () => dom.mainSettingsPanel.classList.toggle('open'));
-            dom.toggleOvertimeSettingsBtn.addEventListener('click', () => dom.overtimeSettingsSection.classList.toggle('open'));
-            dom.saveSettingsBtn.addEventListener('click', handleSaveSettings);
-            dom.addExpenseBtn.addEventListener('click', () => addExpenseRow());
-            dom.expenseList.addEventListener('click', e => { if (e.target.closest('.delete-expense-btn')) e.target.closest('[data-id]').remove(); });
-            dom.workSystem.addEventListener('change', () => { state.settings.workSystem = dom.workSystem.value; updateSettingsUIVisibility(); });
-            dom.paidOvertimeToggle.addEventListener('change', (e) => { state.settings.isPaidOvertime = e.target.checked; overtimeTick(); saveState(); saveSettingsToServer(); });
-            dom.overtimeMultiplier.addEventListener('input', (e) => { state.settings.overtimeMultiplier = parseFloat(e.target.value) || 0; overtimeTick(); saveState(); saveSettingsToServer(); });
-            dom.authSubmitBtn.addEventListener('click', () => {
-                const username = dom.usernameInput.value.trim();
-                if (username) handleLogin(username);
-                else dom.authError.textContent = '用户名不能为空。';
-            });
-            dom.authCancelBtn.addEventListener('click', () => dom.authModal.classList.add('hidden'));
-
-            dom.enablePreciseSalary.addEventListener('change', (e) => {
-                state.settings.enablePreciseSalary = e.target.checked;
-                updateSettingsUIVisibility();
-            });
-            dom.citySelect.addEventListener('change', (e) => {
-                state.settings.city = e.target.value;
-                updateSettingsUIVisibility();
-            });
-            
-            dom.moyuTime.textContent = formatTime(state.accumulatedMoyuSeconds);
-            dom.moyuIncome.textContent = `¥ ${(state.accumulatedMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
-            const now = new Date();
-            const todayEndDate = new Date(now.toDateString() + ' ' + state.settings.endTime);
-            if (now > todayEndDate && !state.overtimeAutoStartedToday) {
-                handleAutoOvertimeStart(now, todayEndDate, true);
-            } else {
-                if (state.overtimeState === 'paused') dom.overtimeBtn.textContent = '继续加班';
-                overtimeTick();
-            }
-            timers.main = setInterval(mainTick, 1000);
-            mainTick();
+        state.auth.username = settingsData.username;
+        state.auth.isLoggedIn = true;
+        if (settingsData.settings) {
+            state.settings = { ...state.settings, ...settingsData.settings };
         }
         
-        init();
-    });
-    </script>
+        updateRuntimeState(runtimeData.runtime);
+        
+        recalculateMetrics();
+        renderSettingsFromState();
+        updateUIForLoginState();
+        updateSyncStatus('success', '云端同步成功');
+        startPolling();
+    }
+
+    async function saveSettings() {
+        state.settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
+        state.settings.workSystem = dom.workSystem.value;
+        state.settings.customWorkDays = parseFloat(dom.customWorkDays.value) || 22;
+        state.settings.startTime = dom.startTime.value;
+        state.settings.endTime = dom.endTime.value;
+        state.settings.isPaidOvertime = dom.paidOvertimeToggle.checked;
+        state.settings.overtimeMultiplier = parseFloat(dom.overtimeMultiplier.value) || 1.5;
+        const newExpenses = [];
+        dom.expenseList.querySelectorAll('[data-id]').forEach(node => {
+            newExpenses.push({
+                id: node.dataset.id, name: node.querySelector('.expense-name').value,
+                amount: parseFloat(node.querySelector('.expense-amount').value) || 0, period: node.querySelector('.expense-period').value
+            });
+        });
+        state.settings.expenses = newExpenses;
+        
+        recalculateMetrics();
+
+        if (!state.auth.isLoggedIn || !state.auth.token) {
+            dom.mainSettingsPanel.classList.remove('open');
+            return;
+        }
+
+        updateSyncStatus('syncing', '保存至云端...', true);
+        try {
+            await apiCall('settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.auth.token}`
+                },
+                body: JSON.stringify(state.settings)
+            });
+            updateSyncStatus('success', '已同步至云端');
+        } catch (error) {
+            updateSyncStatus('error', `保存失败: ${error.message}`);
+        } finally {
+            dom.mainSettingsPanel.classList.remove('open');
+        }
+    }
+
+    // --- Polling and State Update Logic ---
+
+    function updateRuntimeState(runtime) {
+        if (!runtime) return;
+        
+        state.isMoyuing = runtime.isMoyuing;
+        state.isOvertime = runtime.isOvertime;
+        state.serverMoyuStartTime = runtime.moyuStartTime;
+        state.serverOvertimeStartTime = runtime.overtimeStartTime;
+        state.baseMoyuSeconds = runtime.accumulatedMoyuSeconds;
+        state.baseOvertimeSeconds = runtime.accumulatedOvertimeSeconds;
+
+        if (runtime.isMoyuing) {
+            dom.moyuBtn.textContent = '摸鱼中...';
+            dom.moyuBtn.classList.add('action-btn-pulse');
+        } else {
+            dom.moyuBtn.textContent = '开始摸鱼';
+            dom.moyuBtn.classList.remove('action-btn-pulse');
+        }
+        
+        if (runtime.isOvertime) {
+            dom.overtimeBtn.textContent = '加班中...';
+            dom.overtimeBtn.classList.add('action-btn-pulse');
+        } else {
+            dom.overtimeBtn.textContent = '开始加班';
+            dom.overtimeBtn.classList.remove('action-btn-pulse');
+        }
+
+        if (state.isMoyuing || state.isOvertime) {
+            startLocalDisplayTimer();
+        } else {
+            stopLocalDisplayTimer();
+            updateLocalDisplay();
+        }
+    }
+
+    async function pollRuntimeState() {
+        if (!state.auth.isLoggedIn || !state.auth.token) {
+            stopPolling();
+            return;
+        }
+        try {
+            const data = await apiCall('runtime', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${state.auth.token}` }
+            });
+            updateRuntimeState(data.runtime);
+        } catch (error) {
+            console.error("Polling runtime state failed:", error.message);
+            updateSyncStatus('error', '同步中断');
+        }
+    }
+
+    function startPolling() {
+        stopPolling();
+        pollRuntimeState();
+        timers.runtimePoll = setInterval(pollRuntimeState, 7000);
+    }
+
+    function stopPolling() {
+        if (timers.runtimePoll) clearInterval(timers.runtimePoll);
+        timers.runtimePoll = null;
+    }
+
+    function updateLocalDisplay() {
+        let currentMoyuSeconds = state.baseMoyuSeconds;
+        if (state.isMoyuing && state.serverMoyuStartTime) {
+            const elapsed = (Date.now() - state.serverMoyuStartTime) / 1000;
+            currentMoyuSeconds += elapsed > 0 ? elapsed : 0;
+        }
+
+        let currentOvertimeSeconds = state.baseOvertimeSeconds;
+        if (state.isOvertime && state.serverOvertimeStartTime) {
+            const elapsed = (Date.now() - state.serverOvertimeStartTime) / 1000;
+            currentOvertimeSeconds += elapsed > 0 ? elapsed : 0;
+        }
+
+        dom.moyuTime.textContent = formatTime(currentMoyuSeconds);
+        dom.overtimeDuration.textContent = formatTime(currentOvertimeSeconds);
+
+        dom.moyuIncome.textContent = `¥ ${(currentMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
+        let overtimeIncomeVal = 0;
+        if (state.settings.isPaidOvertime) {
+            overtimeIncomeVal = currentOvertimeSeconds * state.salaryPerSecond * state.settings.overtimeMultiplier;
+        } else {
+            overtimeIncomeVal = currentOvertimeSeconds * state.salaryPerSecond * -1;
+        }
+        dom.overtimeIncome.textContent = `¥ ${overtimeIncomeVal.toFixed(2)}`;
+        dom.overtimeIncome.classList.toggle('overtime-gain-text', overtimeIncomeVal >= 0);
+        dom.overtimeIncome.classList.toggle('overtime-loss-text', overtimeIncomeVal < 0);
+    }
+
+    function startLocalDisplayTimer() {
+        if (timers.localDisplay) return; // Prevent multiple timers
+        timers.localDisplay = setInterval(updateLocalDisplay, 1000);
+    }
+
+    function stopLocalDisplayTimer() {
+        if (timers.localDisplay) clearInterval(timers.localDisplay);
+        timers.localDisplay = null;
+    }
+
+    // --- Event Handlers ---
+
+    async function handleAuthClick(action) {
+        if (Tone.context.state !== 'running') await Tone.start();
+        const username = dom.authUsername.value.trim();
+        const password = dom.authPassword.value.trim();
+        if (!username || !password) {
+            dom.authError.textContent = '用户名和密码不能为空';
+            return;
+        }
+        dom.authError.textContent = '';
+        dom.loginBtn.disabled = true;
+        dom.registerBtn.disabled = true;
+        try {
+            const token = await authenticate(action, username, password);
+            await fetchInitialState(token);
+            dom.authModal.classList.add('hidden');
+        } catch (error) {
+            dom.authError.textContent = error.message;
+        } finally {
+            dom.loginBtn.disabled = false;
+            dom.registerBtn.disabled = false;
+        }
+    }
+
+    function handleLogout() {
+        if (!confirm('确定要登出吗？')) return;
+        stopPolling();
+        stopLocalDisplayTimer();
+        state.auth.token = null;
+        state.auth.username = null;
+        state.auth.isLoggedIn = false;
+        localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
+        state.settings = {
+            startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
+            expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
+        };
+        recalculateMetrics();
+        renderSettingsFromState();
+        updateUIForLoginState();
+        mainTick();
+        dom.authModal.classList.remove('hidden');
+    }
+
+    async function handleTimerToggle(type) {
+        const isMoyu = type === 'moyu';
+        const btn = isMoyu ? dom.moyuBtn : dom.overtimeBtn;
+        const isRunning = btn.textContent.includes('中...');
+        const route = isRunning ? (isMoyu ? 'stopMoyu' : 'stopOvertime') : (isMoyu ? 'startMoyu' : 'startOvertime');
+
+        if (!isMoyu && btn.disabled) return;
+
+        btn.textContent = isRunning ? (isMoyu ? '开始摸鱼' : '开始加班') : (isMoyu ? '摸鱼中...' : '加班中...');
+        btn.classList.toggle('action-btn-pulse', !isRunning);
+
+        try {
+            const data = await apiCall('runtime', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.auth.token}` },
+                body: JSON.stringify({ route })
+            });
+            updateRuntimeState(data);
+        } catch (error) {
+            updateSyncStatus('error', `操作失败: ${error.message}`);
+            btn.textContent = isRunning ? (isMoyu ? '摸鱼中...' : '加班中...') : (isMoyu ? '开始摸鱼' : '开始加班');
+            btn.classList.toggle('action-btn-pulse', isRunning);
+        }
+    }
+
+    async function resetDay() {
+        if (!confirm('确定要开启新的一天吗？所有计时器数据都将被重置。')) return;
+        try {
+            const data = await apiCall('runtime', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.auth.token}` },
+                body: JSON.stringify({ route: 'resetDay' })
+            });
+            updateRuntimeState(data);
+            mainTick();
+            alert('新的一天开始了！');
+        } catch (error) {
+            updateSyncStatus('error', `重置失败: ${error.message}`);
+        }
+    }
+
+    // --- Core Logic & UI Functions ---
+
+    function formatTime(s) {
+        if (s < 0) s = 0;
+        const h = Math.floor(s / 3600).toString().padStart(2, '0');
+        const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+        const sec = Math.floor(s % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${sec}`;
+    }
+
+    function updateRewardList(surplus) {
+        const affordable = productList.filter(p => surplus >= p.price);
+        if (affordable.length > state.unlockedRewardCount) {
+            if(Tone.context.state === 'running') sounds.rewardUnlock.triggerAttackRelease('C5', '8n', Tone.now());
+            dom.rewardTitle.classList.add('animate-pulse');
+            setTimeout(() => dom.rewardTitle.classList.remove('animate-pulse'), 1500);
+        }
+        state.unlockedRewardCount = affordable.length;
+        if (affordable.length === 0) {
+            dom.rewardListContainer.innerHTML = `<p class="text-gray-500 text-center col-span-2">还需努力哦 💪</p>`;
+        } else {
+            dom.rewardListContainer.innerHTML = affordable.reverse().map(p => 
+                `<p class="text-white font-semibold text-sm truncate">${Math.floor(surplus / p.price)}${p.unit} ${p.name} ${p.emoji}</p>`
+            ).join('');
+        }
+    }
+
+    function mainTick() {
+        const now = new Date();
+        const { settings } = state;
+        const todayStartDate = new Date(now.toDateString() + ' ' + settings.startTime);
+        const todayEndDate = new Date(now.toDateString() + ' ' + settings.endTime);
+        let moneyEarnedToday = 0;
+        if (now > todayStartDate) {
+            const workSeconds = (Math.min(now, todayEndDate) - todayStartDate) / 1000;
+            moneyEarnedToday = workSeconds * state.salaryPerSecond;
+        }
+        
+        const totalMoney = moneyEarnedToday;
+        const netSurplus = totalMoney - state.dailyExpense;
+
+        dom.moneyEarned.textContent = `¥ ${totalMoney.toFixed(2)}`;
+        dom.netSurplus.textContent = `¥ ${netSurplus.toFixed(2)}`;
+        
+        let countdownSeconds = (now < todayStartDate) ? (todayStartDate - now) / 1000 : (todayEndDate - now) / 1000;
+        dom.countdown.textContent = countdownSeconds > 0 ? formatTime(countdownSeconds) : "已下班";
+        
+        updateRewardList(netSurplus);
+
+        if (now >= todayEndDate && !state.offDutyTimeReached) {
+            state.offDutyTimeReached = true;
+            dom.overtimeBtn.disabled = false;
+            dom.overtimeBtn.classList.remove('cursor-not-allowed', 'opacity-50');
+        } else if (now < todayEndDate) {
+            dom.overtimeBtn.disabled = true;
+            dom.overtimeBtn.classList.add('cursor-not-allowed', 'opacity-50');
+        }
+    }
+
+    function recalculateMetrics() {
+        const { settings } = state;
+        const now = new Date();
+        let workDaysInMonth;
+        if (settings.workSystem === 'auto') {
+            const year = now.getFullYear(); const month = now.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            let weekdays = 0;
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayOfWeek = new Date(year, month, day).getDay();
+                if (dayOfWeek >= 1 && dayOfWeek <= 5) weekdays++;
+            }
+            workDaysInMonth = weekdays;
+        } else if (settings.workSystem === 'custom') {
+            workDaysInMonth = parseFloat(settings.customWorkDays) || 22;
+        } else {
+            workDaysInMonth = parseFloat(settings.workSystem);
+        }
+        if (workDaysInMonth <= 0) workDaysInMonth = 1;
+        const [startH, startM] = settings.startTime.split(':').map(Number);
+        const [endH, endM] = settings.endTime.split(':').map(Number);
+        const totalWorkHours = (endH - startH) + (endM - startM) / 60;
+        state.salaryPerSecond = totalWorkHours > 0 ? (settings.monthlySalary / workDaysInMonth / totalWorkHours / 3600) : 0;
+        state.dailyExpense = settings.expenses.reduce((total, expense) => {
+            const amount = parseFloat(expense.amount) || 0;
+            return total + (expense.period === 'monthly' ? (amount / workDaysInMonth) : amount);
+        }, 0);
+    }
+
+    function updateSyncStatus(status, message, isSpinning = false) {
+        const icon = isSpinning 
+            ? `<svg class="h-4 w-4 sync-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5"/></svg>`
+            : status === 'success'
+            ? `<svg class="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`
+            : `<svg class="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+        dom.syncStatus.innerHTML = `${icon}<span>${message}</span>`;
+    }
+
+    function updateUIForLoginState() {
+        if (state.auth.isLoggedIn) {
+            dom.usernameDisplay.textContent = state.auth.username;
+            dom.logoutBtn.classList.remove('hidden');
+            dom.syncBtn.classList.remove('hidden');
+        } else {
+            dom.usernameDisplay.textContent = '游客模式';
+            dom.logoutBtn.classList.add('hidden');
+            dom.syncBtn.classList.add('hidden');
+        }
+    }
+
+    function loadState() {
+        const token = localStorage.getItem(LOCAL_STORAGE_KEY_TOKEN);
+        if (token) {
+            state.auth.token = token;
+        }
+    }
+    
+    function renderSettingsFromState() {
+        const { settings } = state;
+        dom.monthlySalary.value = settings.monthlySalary;
+        dom.workSystem.value = settings.workSystem;
+        dom.customWorkDays.value = settings.customWorkDays;
+        dom.startTime.value = settings.startTime;
+        dom.endTime.value = settings.endTime;
+        dom.paidOvertimeToggle.checked = settings.isPaidOvertime;
+        dom.overtimeMultiplier.value = settings.overtimeMultiplier;
+        dom.expenseList.innerHTML = '';
+        if (!settings.expenses || settings.expenses.length === 0) {
+            dom.expenseList.innerHTML = `<p class="text-center text-gray-500 text-sm">暂无开销项</p>`;
+        } else {
+            settings.expenses.forEach(exp => addExpenseRow(exp));
+        }
+        updateSettingsUIVisibility();
+    }
+
+    function addExpenseRow(expense = { id: Date.now(), name: '', amount: 0, period: 'monthly' }) {
+        const el = document.createElement('div');
+        el.className = 'grid grid-cols-12 gap-2 items-center';
+        el.dataset.id = expense.id;
+        el.innerHTML = `<input type="text" value="${expense.name}" placeholder="开销名称" class="expense-name col-span-5 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"><input type="number" value="${expense.amount}" placeholder="金额" class="expense-amount col-span-3 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"><select class="expense-period col-span-3 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"><option value="monthly" ${expense.period === 'monthly' ? 'selected' : ''}>每月</option><option value="daily" ${expense.period === 'daily' ? 'selected' : ''}>每日</option></select><button class="delete-expense-btn col-span-1 text-red-500 hover:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
+        if (dom.expenseList.querySelector('p')) dom.expenseList.innerHTML = '';
+        dom.expenseList.appendChild(el);
+    }
+    
+    function updateSettingsUIVisibility() {
+        dom.customDaysWrapper.classList.toggle('hidden', dom.workSystem.value !== 'custom');
+        dom.overtimeMultiplierWrapper.classList.toggle('hidden', !dom.paidOvertimeToggle.checked);
+    }
+
+    async function init() {
+        loadState();
+        if (state.auth.token) {
+            try {
+                updateSyncStatus('syncing', '自动登录中...', true);
+                await fetchInitialState(state.auth.token);
+                dom.authModal.classList.add('hidden');
+            } catch (error) {
+                console.error("自动登录失败:", error.message);
+                state.auth.token = null;
+                localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
+                updateUIForLoginState();
+                updateSyncStatus('error', '自动登录失败，请重新登录');
+                dom.authModal.classList.remove('hidden');
+            }
+        } else {
+            dom.authModal.classList.remove('hidden');
+        }
+        
+        dom.loginBtn.addEventListener('click', () => handleAuthClick('login'));
+        dom.registerBtn.addEventListener('click', () => handleAuthClick('register'));
+        dom.guestModeBtn.addEventListener('click', async () => {
+            if (Tone.context.state !== 'running') await Tone.start();
+            dom.authModal.classList.add('hidden');
+        });
+        dom.logoutBtn.addEventListener('click', handleLogout);
+        dom.syncBtn.addEventListener('click', () => fetchInitialState(state.auth.token));
+        dom.saveSettingsBtn.addEventListener('click', saveSettings);
+        dom.toggleMainSettingsBtn.addEventListener('click', () => dom.mainSettingsPanel.classList.toggle('open'));
+        dom.toggleOvertimeSettingsBtn.addEventListener('click', () => dom.overtimeSettingsSection.classList.toggle('open'));
+        dom.addExpenseBtn.addEventListener('click', () => addExpenseRow());
+        dom.expenseList.addEventListener('click', e => { if (e.target.closest('.delete-expense-btn')) e.target.closest('[data-id]').remove(); });
+        dom.workSystem.addEventListener('change', updateSettingsUIVisibility);
+        dom.paidOvertimeToggle.addEventListener('change', updateSettingsUIVisibility);
+        dom.moyuBtn.addEventListener('click', () => handleTimerToggle('moyu'));
+        dom.overtimeBtn.addEventListener('click', () => handleTimerToggle('overtime'));
+        dom.resetDayBtn.addEventListener('click', resetDay);
+        
+        timers.main = setInterval(mainTick, 1000);
+        mainTick();
+    }
+
+    init();
+});
+</script>
 </body>
 </html>
