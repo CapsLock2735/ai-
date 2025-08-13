@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'nanjing': { name: '南京', ssMin: 4960, ssMax: 26421, hfMin: 2490, hfMax: 34500, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 }, hfRate: 0.08 },
     };
     
-    // Corrected Monthly Tax Brackets
+    // Corrected Monthly Tax Brackets based on official tax law
     const MONTHLY_TAX_BRACKETS = [
         { threshold: 3000, rate: 0.03, quickDeduction: 0 },
         { threshold: 12000, rate: 0.10, quickDeduction: 210 },
@@ -723,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let tax = 0;
         if (taxableIncomeMonthly > 0) {
-            // Correct tax calculation using monthly brackets
+            // Correct tax calculation using monthly brackets and quick deductions
             const bracket = MONTHLY_TAX_BRACKETS.find(b => taxableIncomeMonthly <= b.threshold);
             if (bracket) {
                 tax = taxableIncomeMonthly * bracket.rate - bracket.quickDeduction;
