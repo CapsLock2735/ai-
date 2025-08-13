@@ -24,7 +24,7 @@
             100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
         }
         .settings-section { transition: all 0.5s ease-in-out; max-height: 0; overflow: hidden; }
-        .settings-section.open { max-height: 1500px; padding-top: 1rem; }
+        .settings-section.open { max-height: 2000px; padding-top: 1rem; }
         #reward-title { transition: transform 0.3s ease-in-out; }
         #reward-title.animate-pulse { animation: text-pulse 1.5s; }
         @keyframes text-pulse {
@@ -119,14 +119,47 @@
                         <h4 class="text-md font-bold text-center text-gray-300">税后工资计算</h4>
                         <div>
                             <label for="city-select" class="text-sm font-bold text-gray-400 block mb-1">工作城市</label>
-                            <select id="city-select" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
-                                <option value="">-- 请选择城市 --</option>
-                            </select>
+                            <select id="city-select" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none"></select>
+                        </div>
+                        <!-- 自定义城市数据 -->
+                        <div id="custom-city-data-wrapper" class="hidden space-y-3 pt-3 border-t border-gray-700">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="custom-ss-min" class="text-xs font-bold text-gray-400 block mb-1">社保最低基数</label>
+                                    <input type="number" id="custom-ss-min" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 text-sm">
+                                </div>
+                                <div>
+                                    <label for="custom-ss-max" class="text-xs font-bold text-gray-400 block mb-1">社保最高基数</label>
+                                    <input type="number" id="custom-ss-max" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 text-sm">
+                                </div>
+                                <div>
+                                    <label for="custom-hf-min" class="text-xs font-bold text-gray-400 block mb-1">公积金最低基数</label>
+                                    <input type="number" id="custom-hf-min" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 text-sm">
+                                </div>
+                                <div>
+                                    <label for="custom-hf-max" class="text-xs font-bold text-gray-400 block mb-1">公积金最高基数</label>
+                                    <input type="number" id="custom-hf-max" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 text-sm">
+                                </div>
+                            </div>
+                             <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label for="custom-rate-pension" class="text-xs font-bold text-gray-400 block mb-1">养老(%)</label>
+                                    <input type="number" id="custom-rate-pension" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 text-sm">
+                                </div>
+                                <div>
+                                    <label for="custom-rate-medical" class="text-xs font-bold text-gray-400 block mb-1">医疗(%)</label>
+                                    <input type="number" id="custom-rate-medical" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 text-sm">
+                                </div>
+                                <div>
+                                    <label for="custom-rate-unemployment" class="text-xs font-bold text-gray-400 block mb-1">失业(%)</label>
+                                    <input type="number" id="custom-rate-unemployment" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 text-sm">
+                                </div>
+                            </div>
                         </div>
                         <!-- 社保 -->
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label for="ss-base-mode" class="text-sm font-bold text-gray-400 block mb-1">社保基数</label>
+                                <label for="ss-base-mode" class="text-sm font-bold text-gray-400 block mb-1">社保基数模式</label>
                                 <select id="ss-base-mode" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
                                     <option value="by_salary">按工资</option>
                                     <option value="min">按最低</option>
@@ -134,14 +167,14 @@
                                 </select>
                             </div>
                             <div id="ss-base-custom-wrapper" class="hidden">
-                                <label for="ss-base-custom" class="text-sm font-bold text-gray-400 block mb-1">自定义(元)</label>
+                                <label for="ss-base-custom" class="text-sm font-bold text-gray-400 block mb-1">自定义基数(元)</label>
                                 <input type="number" id="ss-base-custom" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
                             </div>
                         </div>
                         <!-- 公积金 -->
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label for="hf-base-mode" class="text-sm font-bold text-gray-400 block mb-1">公积金基数</label>
+                                <label for="hf-base-mode" class="text-sm font-bold text-gray-400 block mb-1">公积金基数模式</label>
                                 <select id="hf-base-mode" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
                                     <option value="by_salary">按工资</option>
                                     <option value="min">按最低</option>
@@ -149,12 +182,18 @@
                                 </select>
                             </div>
                             <div id="hf-base-custom-wrapper" class="hidden">
-                                <label for="hf-base-custom" class="text-sm font-bold text-gray-400 block mb-1">自定义(元)</label>
+                                <label for="hf-base-custom" class="text-sm font-bold text-gray-400 block mb-1">自定义基数(元)</label>
                                 <input type="number" id="hf-base-custom" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
                             </div>
                         </div>
+                        <!-- 公积金比例 -->
+                        <div>
+                            <label for="hf-rate" class="text-sm font-bold text-gray-400 block mb-1">公积金缴纳比例 (%)</label>
+                            <input type="number" id="hf-rate" min="5" max="12" step="1" class="w-full bg-gray-700 p-2 rounded-md border border-gray-600 focus:ring-2 focus:ring-amber-400 outline-none">
+                        </div>
+
                         <div id="after-tax-display" class="text-center mt-3 p-3 bg-gray-800 rounded-lg">
-                            <p class="text-gray-400 text-sm">请填写以上信息以计算税后工资</p>
+                            <p class="text-gray-400 text-sm">请填写税前月薪以计算</p>
                         </div>
                     </div>
                 </div>
@@ -235,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         userStatusBar: document.getElementById('user-status-bar'), userInfo: document.getElementById('user-info'),
         usernameDisplay: document.getElementById('username-display'), syncStatus: document.getElementById('sync-status'),
         syncBtn: document.getElementById('sync-btn'), logoutBtn: document.getElementById('logout-btn'),
-        // New Tax elements
+        // Tax elements
         toggleTaxSettingsBtn: document.getElementById('toggle-tax-settings-btn'),
         taxSettingsPanel: document.getElementById('tax-settings-panel'),
         citySelect: document.getElementById('city-select'),
@@ -245,7 +284,16 @@ document.addEventListener('DOMContentLoaded', () => {
         hfBaseMode: document.getElementById('hf-base-mode'),
         hfBaseCustomWrapper: document.getElementById('hf-base-custom-wrapper'),
         hfBaseCustom: document.getElementById('hf-base-custom'),
+        hfRate: document.getElementById('hf-rate'),
         afterTaxDisplay: document.getElementById('after-tax-display'),
+        customCityDataWrapper: document.getElementById('custom-city-data-wrapper'),
+        customSsMin: document.getElementById('custom-ss-min'),
+        customSsMax: document.getElementById('custom-ss-max'),
+        customHfMin: document.getElementById('custom-hf-min'),
+        customHfMax: document.getElementById('custom-hf-max'),
+        customRatePension: document.getElementById('custom-rate-pension'),
+        customRateMedical: document.getElementById('custom-rate-medical'),
+        customRateUnemployment: document.getElementById('custom-rate-unemployment'),
     };
 
     // --- State Management ---
@@ -260,8 +308,12 @@ document.addEventListener('DOMContentLoaded', () => {
         settings: {
             startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
             expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
-            // New Tax settings
-            city: '', ssBaseMode: 'by_salary', ssBaseCustom: 0, hfBaseMode: 'by_salary', hfBaseCustom: 0,
+            // Tax settings
+            city: 'beijing', ssBaseMode: 'by_salary', ssBaseCustom: 0, hfBaseMode: 'by_salary', hfBaseCustom: 0, hfRate: 12,
+            customCityData: {
+                ssMin: 4000, ssMax: 30000, hfMin: 2500, hfMax: 30000,
+                rates: { pension: 8, medical: 2, unemployment: 0.5 }
+            }
         },
         auth: {
             token: null, username: null, isLoggedIn: false,
@@ -282,53 +334,39 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     const LOCAL_STORAGE_KEY_TOKEN = 'moyu_auth_token_v3';
     
-    // --- New Tax Data Constants ---
     const CITY_DATA = {
-        'beijing': { name: '北京', ssMin: 6512, ssMax: 33891, hfMin: 2420, hfMax: 33891, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005, hf: 0.12 } },
-        'shanghai': { name: '上海', ssMin: 7310, ssMax: 36549, hfMin: 2690, hfMax: 36549, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005, hf: 0.07 } },
-        'guangzhou': { name: '广州', ssMin: 4588, ssMax: 26421, hfMin: 2300, hfMax: 38082, rates: { pension: 0.08, medical: 0.02, unemployment: 0.002, hf: 0.08 } },
-        'shenzhen': { name: '深圳', ssMin: 2360, ssMax: 26421, hfMin: 2360, hfMax: 41190, rates: { pension: 0.08, medical: 0.02, unemployment: 0.003, hf: 0.05 } },
-        'hangzhou': { name: '杭州', ssMin: 4462, ssMax: 22311, hfMin: 2280, hfMax: 36675, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005, hf: 0.12 } },
-        'chengdu': { name: '成都', ssMin: 4246, ssMax: 21228, hfMin: 2100, hfMax: 27939, rates: { pension: 0.08, medical: 0.02, unemployment: 0.004, hf: 0.10 } },
-        'nanjing': { name: '南京', ssMin: 4960, ssMax: 26421, hfMin: 2490, hfMax: 34500, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005, hf: 0.08 } },
+        'beijing': { name: '北京', ssMin: 6512, ssMax: 33891, hfMin: 2420, hfMax: 33891, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 }, hfRate: 0.12 },
+        'shanghai': { name: '上海', ssMin: 7310, ssMax: 36549, hfMin: 2690, hfMax: 36549, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 }, hfRate: 0.07 },
+        'guangzhou': { name: '广州', ssMin: 4588, ssMax: 26421, hfMin: 2300, hfMax: 38082, rates: { pension: 0.08, medical: 0.02, unemployment: 0.002 }, hfRate: 0.08 },
+        'shenzhen': { name: '深圳', ssMin: 2360, ssMax: 26421, hfMin: 2360, hfMax: 41190, rates: { pension: 0.08, medical: 0.02, unemployment: 0.003 }, hfRate: 0.05 },
+        'hangzhou': { name: '杭州', ssMin: 4462, ssMax: 22311, hfMin: 2280, hfMax: 36675, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 }, hfRate: 0.12 },
+        'chengdu': { name: '成都', ssMin: 4246, ssMax: 21228, hfMin: 2100, hfMax: 27939, rates: { pension: 0.08, medical: 0.02, unemployment: 0.004 }, hfRate: 0.10 },
+        'nanjing': { name: '南京', ssMin: 4960, ssMax: 26421, hfMin: 2490, hfMax: 34500, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 }, hfRate: 0.08 },
     };
-    const TAX_BRACKETS = [ // Annual income brackets
-        { threshold: 36000, rate: 0.03, quickDeduction: 0 },
-        { threshold: 144000, rate: 0.10, quickDeduction: 2520 },
-        { threshold: 300000, rate: 0.20, quickDeduction: 16920 },
-        { threshold: 420000, rate: 0.25, quickDeduction: 31920 },
-        { threshold: 660000, rate: 0.30, quickDeduction: 52920 },
-        { threshold: 960000, rate: 0.35, quickDeduction: 85920 },
+    const TAX_BRACKETS = [
+        { threshold: 36000, rate: 0.03, quickDeduction: 0 }, { threshold: 144000, rate: 0.10, quickDeduction: 2520 },
+        { threshold: 300000, rate: 0.20, quickDeduction: 16920 }, { threshold: 420000, rate: 0.25, quickDeduction: 31920 },
+        { threshold: 660000, rate: 0.30, quickDeduction: 52920 }, { threshold: 960000, rate: 0.35, quickDeduction: 85920 },
         { threshold: Infinity, rate: 0.45, quickDeduction: 181920 },
     ];
 
     // --- API and Auth Logic ---
     async function apiCall(endpoint, options = {}) {
         let url = `/api?route=${endpoint}`;
-        if (!options.method || options.method.toUpperCase() === 'GET') {
-            url += `&_=${Date.now()}`;
-        }
+        if (!options.method || options.method.toUpperCase() === 'GET') { url += `&_=${Date.now()}`; }
         const response = await fetch(url, options);
         let data;
-        try {
-            data = await response.json();
-        } catch (e) {
+        try { data = await response.json(); } catch (e) {
             const text = await response.text();
             throw new Error(`服务器响应不是有效的JSON: ${text}`);
         }
-        if (!response.ok) {
-            throw new Error(data.message || `请求失败，状态码: ${response.status}`);
-        }
+        if (!response.ok) { throw new Error(data.message || `请求失败，状态码: ${response.status}`); }
         return data;
     }
 
     async function authenticate(action, username, password) {
         const payload = { action, username, password };
-        const options = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        };
+        const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
         const data = await apiCall('auth', options);
         state.auth.token = data.token;
         localStorage.setItem(LOCAL_STORAGE_KEY_TOKEN, data.token);
@@ -341,16 +379,10 @@ document.addEventListener('DOMContentLoaded', () => {
             apiCall('settings', { headers: { 'Authorization': `Bearer ${token}` } }),
             apiCall('runtime', { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } })
         ]);
-
         state.auth.username = settingsData.username;
         state.auth.isLoggedIn = true;
-        if (settingsData.settings) {
-            // Merge fetched settings into default state to ensure new fields are present
-            state.settings = { ...state.settings, ...settingsData.settings };
-        }
-        
+        if (settingsData.settings) { state.settings = { ...state.settings, ...settingsData.settings }; }
         updateRuntimeState(runtimeData.runtime);
-        
         recalculateMetrics();
         renderSettingsFromState();
         updateUIForLoginState();
@@ -360,7 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- Settings Save Logic ---
     async function saveSettings() {
-        // Basic settings
         state.settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
         state.settings.workSystem = dom.workSystem.value;
         state.settings.customWorkDays = parseFloat(dom.customWorkDays.value) || 22;
@@ -369,12 +400,26 @@ document.addEventListener('DOMContentLoaded', () => {
         state.settings.isPaidOvertime = dom.paidOvertimeToggle.checked;
         state.settings.overtimeMultiplier = parseFloat(dom.overtimeMultiplier.value) || 1.5;
         
-        // Tax settings
         state.settings.city = dom.citySelect.value;
         state.settings.ssBaseMode = dom.ssBaseMode.value;
         state.settings.ssBaseCustom = parseFloat(dom.ssBaseCustom.value) || 0;
         state.settings.hfBaseMode = dom.hfBaseMode.value;
         state.settings.hfBaseCustom = parseFloat(dom.hfBaseCustom.value) || 0;
+        state.settings.hfRate = parseFloat(dom.hfRate.value) || 12;
+
+        if (state.settings.city === 'custom') {
+            state.settings.customCityData = {
+                ssMin: parseFloat(dom.customSsMin.value) || 0,
+                ssMax: parseFloat(dom.customSsMax.value) || 0,
+                hfMin: parseFloat(dom.customHfMin.value) || 0,
+                hfMax: parseFloat(dom.customHfMax.value) || 0,
+                rates: {
+                    pension: parseFloat(dom.customRatePension.value) || 0,
+                    medical: parseFloat(dom.customRateMedical.value) || 0,
+                    unemployment: parseFloat(dom.customRateUnemployment.value) || 0,
+                }
+            };
+        }
 
         const newExpenses = [];
         dom.expenseList.querySelectorAll('[data-id]').forEach(node => {
@@ -410,14 +455,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Polling and State Update Logic ---
     function updateRuntimeState(runtime) {
         if (!runtime) return;
-        
         state.isMoyuing = runtime.isMoyuing;
         state.isOvertime = runtime.isOvertime;
         state.serverMoyuStartTime = runtime.moyuStartTime;
         state.serverOvertimeStartTime = runtime.overtimeStartTime;
         state.baseMoyuSeconds = runtime.accumulatedMoyuSeconds;
         state.baseOvertimeSeconds = runtime.accumulatedOvertimeSeconds;
-
         if (runtime.isMoyuing) {
             dom.moyuBtn.textContent = '摸鱼中...';
             dom.moyuBtn.classList.add('action-btn-pulse');
@@ -425,7 +468,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.moyuBtn.textContent = '开始摸鱼';
             dom.moyuBtn.classList.remove('action-btn-pulse');
         }
-        
         if (runtime.isOvertime) {
             dom.overtimeBtn.textContent = '加班中...';
             dom.overtimeBtn.classList.add('action-btn-pulse');
@@ -433,25 +475,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.overtimeBtn.textContent = '开始加班';
             dom.overtimeBtn.classList.remove('action-btn-pulse');
         }
-
-        if (state.isMoyuing || state.isOvertime) {
-            startLocalDisplayTimer();
-        } else {
-            stopLocalDisplayTimer();
-            updateLocalDisplay();
-        }
+        if (state.isMoyuing || state.isOvertime) { startLocalDisplayTimer(); } 
+        else { stopLocalDisplayTimer(); updateLocalDisplay(); }
     }
 
     async function pollRuntimeState() {
-        if (!state.auth.isLoggedIn || !state.auth.token) {
-            stopPolling();
-            return;
-        }
+        if (!state.auth.isLoggedIn || !state.auth.token) { stopPolling(); return; }
         try {
-            const data = await apiCall('runtime', {
-                method: 'GET',
-                headers: { 'Authorization': `Bearer ${state.auth.token}` }
-            });
+            const data = await apiCall('runtime', { method: 'GET', headers: { 'Authorization': `Bearer ${state.auth.token}` } });
             updateRuntimeState(data.runtime);
         } catch (error) {
             console.error("Polling runtime state failed:", error.message);
@@ -476,16 +507,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const elapsed = (Date.now() - state.serverMoyuStartTime) / 1000;
             currentMoyuSeconds += elapsed > 0 ? elapsed : 0;
         }
-
         let currentOvertimeSeconds = state.baseOvertimeSeconds;
         if (state.isOvertime && state.serverOvertimeStartTime) {
             const elapsed = (Date.now() - state.serverOvertimeStartTime) / 1000;
             currentOvertimeSeconds += elapsed > 0 ? elapsed : 0;
         }
-
         dom.moyuTime.textContent = formatTime(currentMoyuSeconds);
         dom.overtimeDuration.textContent = formatTime(currentOvertimeSeconds);
-
         dom.moyuIncome.textContent = `¥ ${(currentMoyuSeconds * state.salaryPerSecond).toFixed(2)}`;
         let overtimeIncomeVal = 0;
         if (state.settings.isPaidOvertime) {
@@ -499,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startLocalDisplayTimer() {
-        if (timers.localDisplay) return; // Prevent multiple timers
+        if (timers.localDisplay) return;
         timers.localDisplay = setInterval(updateLocalDisplay, 1000);
     }
 
@@ -513,10 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Tone.context.state !== 'running') await Tone.start();
         const username = dom.authUsername.value.trim();
         const password = dom.authPassword.value.trim();
-        if (!username || !password) {
-            dom.authError.textContent = '用户名和密码不能为空';
-            return;
-        }
+        if (!username || !password) { dom.authError.textContent = '用户名和密码不能为空'; return; }
         dom.authError.textContent = '';
         dom.loginBtn.disabled = true;
         dom.registerBtn.disabled = true;
@@ -540,11 +565,13 @@ document.addEventListener('DOMContentLoaded', () => {
         state.auth.username = null;
         state.auth.isLoggedIn = false;
         localStorage.removeItem(LOCAL_STORAGE_KEY_TOKEN);
-        state.settings = {
+        // Reset to default state
+        Object.assign(state.settings, {
             startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
             expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
-            city: '', ssBaseMode: 'by_salary', ssBaseCustom: 0, hfBaseMode: 'by_salary', hfBaseCustom: 0,
-        };
+            city: 'beijing', ssBaseMode: 'by_salary', ssBaseCustom: 0, hfBaseMode: 'by_salary', hfBaseCustom: 0, hfRate: 12,
+            customCityData: { ssMin: 4000, ssMax: 30000, hfMin: 2500, hfMax: 30000, rates: { pension: 8, medical: 2, unemployment: 0.5 } }
+        });
         recalculateMetrics();
         renderSettingsFromState();
         updateUIForLoginState();
@@ -557,12 +584,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = isMoyu ? dom.moyuBtn : dom.overtimeBtn;
         const isRunning = btn.textContent.includes('中...');
         const route = isRunning ? (isMoyu ? 'stopMoyu' : 'stopOvertime') : (isMoyu ? 'startMoyu' : 'startOvertime');
-
         if (!isMoyu && btn.disabled) return;
-
         btn.textContent = isRunning ? (isMoyu ? '开始摸鱼' : '开始加班') : (isMoyu ? '摸鱼中...' : '加班中...');
         btn.classList.toggle('action-btn-pulse', !isRunning);
-
         try {
             const data = await apiCall('runtime', {
                 method: 'POST',
@@ -629,18 +653,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const workSeconds = (Math.min(now, todayEndDate) - todayStartDate) / 1000;
             moneyEarnedToday = workSeconds * state.salaryPerSecond;
         }
-        
         const totalMoney = moneyEarnedToday;
         const netSurplus = totalMoney - state.dailyExpense;
-
         dom.moneyEarned.textContent = `¥ ${totalMoney.toFixed(2)}`;
         dom.netSurplus.textContent = `¥ ${netSurplus.toFixed(2)}`;
-        
         let countdownSeconds = (now < todayStartDate) ? (todayStartDate - now) / 1000 : (todayEndDate - now) / 1000;
         dom.countdown.textContent = countdownSeconds > 0 ? formatTime(countdownSeconds) : "已下班";
-        
         updateRewardList(netSurplus);
-
         if (now >= todayEndDate && !state.offDutyTimeReached) {
             state.offDutyTimeReached = true;
             dom.overtimeBtn.disabled = false;
@@ -651,37 +670,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- New Tax Calculation Logic ---
+    // --- Tax Calculation Logic ---
     function calculateAfterTaxSalary() {
-        const { monthlySalary, city, ssBaseMode, ssBaseCustom, hfBaseMode, hfBaseCustom } = state.settings;
-        const cityData = CITY_DATA[city];
+        const settings = { ...state.settings }; // Use a copy for calculation
+        settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
+        settings.city = dom.citySelect.value;
+        settings.ssBaseMode = dom.ssBaseMode.value;
+        settings.ssBaseCustom = parseFloat(dom.ssBaseCustom.value) || 0;
+        settings.hfBaseMode = dom.hfBaseMode.value;
+        settings.hfBaseCustom = parseFloat(dom.hfBaseCustom.value) || 0;
+        settings.hfRate = parseFloat(dom.hfRate.value) || 0;
 
-        if (!cityData || !monthlySalary) {
-            dom.afterTaxDisplay.innerHTML = `<p class="text-gray-400 text-sm">请选择城市并输入税前月薪</p>`;
+        if (!settings.monthlySalary) {
+            dom.afterTaxDisplay.innerHTML = `<p class="text-gray-400 text-sm">请输入税前月薪</p>`;
             return null;
         }
 
-        // 1. Determine Social Security Base
-        let ssBase = monthlySalary;
-        if (ssBaseMode === 'min') ssBase = cityData.ssMin;
-        if (ssBaseMode === 'custom') ssBase = ssBaseCustom;
-        ssBase = Math.max(cityData.ssMin, Math.min(ssBase, cityData.ssMax));
+        let cityConfig;
+        if (settings.city === 'custom') {
+            cityConfig = {
+                ssMin: parseFloat(dom.customSsMin.value) || 0,
+                ssMax: parseFloat(dom.customSsMax.value) || Infinity,
+                hfMin: parseFloat(dom.customHfMin.value) || 0,
+                hfMax: parseFloat(dom.customHfMax.value) || Infinity,
+                rates: {
+                    pension: (parseFloat(dom.customRatePension.value) || 0) / 100,
+                    medical: (parseFloat(dom.customRateMedical.value) || 0) / 100,
+                    unemployment: (parseFloat(dom.customRateUnemployment.value) || 0) / 100,
+                }
+            };
+        } else {
+            cityConfig = CITY_DATA[settings.city];
+        }
+        
+        if (!cityConfig) {
+             dom.afterTaxDisplay.innerHTML = `<p class="text-gray-400 text-sm">请选择城市或配置自定义数据</p>`;
+            return null;
+        }
 
-        // 2. Determine Housing Fund Base
-        let hfBase = monthlySalary;
-        if (hfBaseMode === 'min') hfBase = cityData.hfMin;
-        if (hfBaseMode === 'custom') hfBase = hfBaseCustom;
-        hfBase = Math.max(cityData.hfMin, Math.min(hfBase, cityData.hfMax));
+        let ssBase = settings.monthlySalary;
+        if (settings.ssBaseMode === 'min') ssBase = cityConfig.ssMin;
+        if (settings.ssBaseMode === 'custom') ssBase = settings.ssBaseCustom;
+        ssBase = Math.max(cityConfig.ssMin, Math.min(ssBase, cityConfig.ssMax));
 
-        // 3. Calculate Deductions
-        const { pension, medical, unemployment, hf } = cityData.rates;
+        let hfBase = settings.monthlySalary;
+        if (settings.hfBaseMode === 'min') hfBase = cityConfig.hfMin;
+        if (settings.hfBaseMode === 'custom') hfBase = settings.hfBaseCustom;
+        hfBase = Math.max(cityConfig.hfMin, Math.min(hfBase, cityConfig.hfMax));
+
+        const { pension, medical, unemployment } = cityConfig.rates;
         const ssDeduction = ssBase * (pension + medical + unemployment);
-        const hfDeduction = hfBase * hf;
+        const hfDeduction = hfBase * (settings.hfRate / 100);
         const totalDeductions = ssDeduction + hfDeduction;
 
-        // 4. Calculate Tax
         const taxThreshold = 5000;
-        const taxableIncomeMonthly = monthlySalary - totalDeductions - taxThreshold;
+        const taxableIncomeMonthly = settings.monthlySalary - totalDeductions - taxThreshold;
         let tax = 0;
         if (taxableIncomeMonthly > 0) {
             const taxableIncomeAnnual = taxableIncomeMonthly * 12;
@@ -692,16 +735,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 5. Final Salary
-        const afterTaxSalary = monthlySalary - totalDeductions - tax;
+        const afterTaxSalary = settings.monthlySalary - totalDeductions - tax;
 
-        // Update display
         dom.afterTaxDisplay.innerHTML = `
             <p class="text-sm text-gray-300">预计税后月薪: <span class="font-bold text-lg text-amber-400">¥ ${afterTaxSalary.toFixed(2)}</span></p>
             <p class="text-xs text-gray-500 mt-1">五险一金: ¥${totalDeductions.toFixed(2)} | 个人所得税: ¥${tax.toFixed(2)}</p>
         `;
 
-        return { afterTaxSalary, totalDeductions, tax };
+        return { afterTaxSalary };
     }
 
     // --- Recalculate Metrics ---
@@ -709,9 +750,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const { settings } = state;
         let effectiveSalary = parseFloat(settings.monthlySalary) || 0;
 
-        // Try to calculate after-tax salary
         const taxCalculationResult = calculateAfterTaxSalary();
-        if (taxCalculationResult) {
+        if (taxCalculationResult && taxCalculationResult.afterTaxSalary > 0) {
             effectiveSalary = taxCalculationResult.afterTaxSalary;
         }
 
@@ -765,14 +805,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadState() {
         const token = localStorage.getItem(LOCAL_STORAGE_KEY_TOKEN);
-        if (token) {
-            state.auth.token = token;
-        }
+        if (token) { state.auth.token = token; }
     }
     
     function renderSettingsFromState() {
         const { settings } = state;
-        // Basic settings
         dom.monthlySalary.value = settings.monthlySalary;
         dom.workSystem.value = settings.workSystem;
         dom.customWorkDays.value = settings.customWorkDays;
@@ -781,12 +818,22 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.paidOvertimeToggle.checked = settings.isPaidOvertime;
         dom.overtimeMultiplier.value = settings.overtimeMultiplier;
         
-        // Tax settings
         dom.citySelect.value = settings.city;
         dom.ssBaseMode.value = settings.ssBaseMode;
         dom.ssBaseCustom.value = settings.ssBaseCustom;
         dom.hfBaseMode.value = settings.hfBaseMode;
         dom.hfBaseCustom.value = settings.hfBaseCustom;
+        dom.hfRate.value = settings.hfRate;
+
+        if (settings.customCityData) {
+            dom.customSsMin.value = settings.customCityData.ssMin;
+            dom.customSsMax.value = settings.customCityData.ssMax;
+            dom.customHfMin.value = settings.customCityData.hfMin;
+            dom.customHfMax.value = settings.customCityData.hfMax;
+            dom.customRatePension.value = settings.customCityData.rates.pension;
+            dom.customRateMedical.value = settings.customCityData.rates.medical;
+            dom.customRateUnemployment.value = settings.customCityData.rates.unemployment;
+        }
 
         dom.expenseList.innerHTML = '';
         if (!settings.expenses || settings.expenses.length === 0) {
@@ -795,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
             settings.expenses.forEach(exp => addExpenseRow(exp));
         }
         updateSettingsUIVisibility();
-        recalculateMetrics(); // Recalculate to update tax display
+        recalculateMetrics();
     }
 
     function addExpenseRow(expense = { id: Date.now(), name: '', amount: 0, period: 'monthly' }) {
@@ -810,12 +857,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateSettingsUIVisibility() {
         dom.customDaysWrapper.classList.toggle('hidden', dom.workSystem.value !== 'custom');
         dom.overtimeMultiplierWrapper.classList.toggle('hidden', !dom.paidOvertimeToggle.checked);
-        // New tax UI visibility
         dom.ssBaseCustomWrapper.classList.toggle('hidden', dom.ssBaseMode.value !== 'custom');
         dom.hfBaseCustomWrapper.classList.toggle('hidden', dom.hfBaseMode.value !== 'custom');
+        dom.customCityDataWrapper.classList.toggle('hidden', dom.citySelect.value !== 'custom');
     }
 
     function populateCityDropdown() {
+        dom.citySelect.innerHTML = ''; // Clear existing options
+        const customOption = document.createElement('option');
+        customOption.value = 'custom';
+        customOption.textContent = '自定义 / 其他城市';
+        dom.citySelect.appendChild(customOption);
+
         Object.keys(CITY_DATA).forEach(key => {
             const option = document.createElement('option');
             option.value = key;
@@ -863,23 +916,25 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.overtimeBtn.addEventListener('click', () => handleTimerToggle('overtime'));
         dom.resetDayBtn.addEventListener('click', resetDay);
 
-        // New event listeners for tax settings
+        // Tax settings event listeners
         dom.toggleTaxSettingsBtn.addEventListener('click', () => dom.taxSettingsPanel.classList.toggle('open'));
         dom.ssBaseMode.addEventListener('change', updateSettingsUIVisibility);
         dom.hfBaseMode.addEventListener('change', updateSettingsUIVisibility);
-        // Add listeners to recalculate on change for instant feedback
-        [dom.monthlySalary, dom.citySelect, dom.ssBaseMode, dom.ssBaseCustom, dom.hfBaseMode, dom.hfBaseCustom].forEach(el => {
-            el.addEventListener('input', () => {
-                // Temporarily update state for calculation without full save
-                state.settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
-                state.settings.city = dom.citySelect.value;
-                state.settings.ssBaseMode = dom.ssBaseMode.value;
-                state.settings.ssBaseCustom = parseFloat(dom.ssBaseCustom.value) || 0;
-                state.settings.hfBaseMode = dom.hfBaseMode.value;
-                state.settings.hfBaseCustom = parseFloat(dom.hfBaseCustom.value) || 0;
-                calculateAfterTaxSalary();
-            });
+        dom.citySelect.addEventListener('change', (e) => {
+            updateSettingsUIVisibility();
+            const cityKey = e.target.value;
+            if (cityKey !== 'custom' && CITY_DATA[cityKey]) {
+                dom.hfRate.value = CITY_DATA[cityKey].hfRate * 100;
+            }
+            calculateAfterTaxSalary();
         });
+        
+        const taxInputs = [
+            dom.monthlySalary, dom.ssBaseMode, dom.ssBaseCustom, dom.hfBaseMode, dom.hfBaseCustom, dom.hfRate,
+            dom.customSsMin, dom.customSsMax, dom.customHfMin, dom.customHfMax,
+            dom.customRatePension, dom.customRateMedical, dom.customRateUnemployment
+        ];
+        taxInputs.forEach(el => el.addEventListener('input', calculateAfterTaxSalary));
         
         timers.main = setInterval(mainTick, 1000);
         mainTick();
