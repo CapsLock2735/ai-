@@ -332,11 +332,16 @@ document.addEventListener('DOMContentLoaded', () => {
         'chengdu': { name: '成都', ssMin: 4246, ssMax: 21228, hfMin: 2100, hfMax: 27939, rates: { pension: 0.08, medical: 0.02, unemployment: 0.004 }, hfRate: 0.10 },
         'nanjing': { name: '南京', ssMin: 4960, ssMax: 26421, hfMin: 2490, hfMax: 34500, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 }, hfRate: 0.08 },
     };
-    const TAX_BRACKETS = [
-        { threshold: 36000, rate: 0.03, quickDeduction: 0 }, { threshold: 144000, rate: 0.10, quickDeduction: 2520 },
-        { threshold: 300000, rate: 0.20, quickDeduction: 16920 }, { threshold: 420000, rate: 0.25, quickDeduction: 31920 },
-        { threshold: 660000, rate: 0.30, quickDeduction: 52920 }, { threshold: 960000, rate: 0.35, quickDeduction: 85920 },
-        { threshold: Infinity, rate: 0.45, quickDeduction: 181920 },
+    
+    // Corrected Monthly Tax Brackets
+    const MONTHLY_TAX_BRACKETS = [
+        { threshold: 3000, rate: 0.03, quickDeduction: 0 },
+        { threshold: 12000, rate: 0.10, quickDeduction: 210 },
+        { threshold: 25000, rate: 0.20, quickDeduction: 1410 },
+        { threshold: 35000, rate: 0.25, quickDeduction: 2660 },
+        { threshold: 55000, rate: 0.30, quickDeduction: 4410 },
+        { threshold: 80000, rate: 0.35, quickDeduction: 7160 },
+        { threshold: Infinity, rate: 0.45, quickDeduction: 15160 },
     ];
 
     // --- API and Auth Logic ---
@@ -660,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Tax Calculation Logic ---
+    // --- Tax Calculation Logic (REWRITTEN FOR ACCURACY) ---
     function calculateAfterTaxSalary() {
         const settings = { ...state.settings }; // Use a copy for calculation
         settings.monthlySalary = parseFloat(dom.monthlySalary.value) || 0;
@@ -715,15 +720,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const taxThreshold = 5000;
         const taxableIncomeMonthly = settings.monthlySalary - ssDeduction - hfDeduction - taxThreshold - settings.specialDeductions;
+        
         let tax = 0;
         if (taxableIncomeMonthly > 0) {
-            const taxableIncomeAnnual = taxableIncomeMonthly * 12;
-            const bracket = TAX_BRACKETS.find(b => taxableIncomeAnnual <= b.threshold);
+            // Correct tax calculation using monthly brackets
+            const bracket = MONTHLY_TAX_BRACKETS.find(b => taxableIncomeMonthly <= b.threshold);
             if (bracket) {
-                const annualTax = taxableIncomeAnnual * bracket.rate - bracket.quickDeduction;
-                tax = Math.max(0, annualTax / 12);
+                tax = taxableIncomeMonthly * bracket.rate - bracket.quickDeduction;
             }
         }
+        tax = Math.max(0, tax); // Ensure tax is not negative
 
         const afterTaxSalary = settings.monthlySalary - ssDeduction - hfDeduction - tax;
 
