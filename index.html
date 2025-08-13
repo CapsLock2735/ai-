@@ -128,6 +128,9 @@
                                 <div class="flex items-center justify-between"><span class="text-sm text-gray-400">社保最高基数</span><input type="number" id="custom-ss-max" class="w-1/2 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"></div>
                                 <div class="flex items-center justify-between"><span class="text-sm text-gray-400">公积金最低基数</span><input type="number" id="custom-hf-min" class="w-1/2 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"></div>
                                 <div class="flex items-center justify-between"><span class="text-sm text-gray-400">公积金最高基数</span><input type="number" id="custom-hf-max" class="w-1/2 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"></div>
+                            </div>
+                            <button id="toggle-custom-rates-btn" class="w-full text-xs bg-gray-600 hover:bg-gray-500 text-white font-bold py-1 rounded-md transition-colors">自定义社保比例</button>
+                            <div id="custom-rates-wrapper" class="hidden space-y-2 pt-2">
                                 <div class="flex items-center justify-between"><span class="text-sm text-gray-400">养老保险(%)</span><input type="number" id="custom-rate-pension" class="w-1/2 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"></div>
                                 <div class="flex items-center justify-between"><span class="text-sm text-gray-400">医疗保险(%)</span><input type="number" id="custom-rate-medical" class="w-1/2 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"></div>
                                 <div class="flex items-center justify-between"><span class="text-sm text-gray-400">失业保险(%)</span><input type="number" id="custom-rate-unemployment" class="w-1/2 bg-gray-700 p-2 rounded-md border border-gray-600 text-sm"></div>
@@ -275,6 +278,8 @@ document.addEventListener('DOMContentLoaded', () => {
         customSsMax: document.getElementById('custom-ss-max'),
         customHfMin: document.getElementById('custom-hf-min'),
         customHfMax: document.getElementById('custom-hf-max'),
+        toggleCustomRatesBtn: document.getElementById('toggle-custom-rates-btn'),
+        customRatesWrapper: document.getElementById('custom-rates-wrapper'),
         customRatePension: document.getElementById('custom-rate-pension'),
         customRateMedical: document.getElementById('custom-rate-medical'),
         customRateUnemployment: document.getElementById('custom-rate-unemployment'),
@@ -296,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
             city: 'beijing', ssBaseMode: 'by_salary', ssBaseCustom: 0, hfBaseMode: 'by_salary', hfBaseCustom: 0, hfRate: 12, specialDeductions: 0,
             customCityData: {
                 ssMin: 4000, ssMax: 30000, hfMin: 2500, hfMax: 30000,
-                rates: { pension: 8, medical: 2, unemployment: 0.5 }
+                rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 }
             }
         },
         auth: {
@@ -399,9 +404,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 hfMin: parseFloat(dom.customHfMin.value) || 0,
                 hfMax: parseFloat(dom.customHfMax.value) || 0,
                 rates: {
-                    pension: parseFloat(dom.customRatePension.value) || 0,
-                    medical: parseFloat(dom.customRateMedical.value) || 0,
-                    unemployment: parseFloat(dom.customRateUnemployment.value) || 0,
+                    pension: (parseFloat(dom.customRatePension.value) || 0) / 100,
+                    medical: (parseFloat(dom.customRateMedical.value) || 0) / 100,
+                    unemployment: (parseFloat(dom.customRateUnemployment.value) || 0) / 100,
                 }
             };
         }
@@ -555,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
             startTime: '09:00', endTime: '18:00', monthlySalary: 8000, workSystem: 'auto', customWorkDays: 22,
             expenses: [], isPaidOvertime: false, overtimeMultiplier: 1.5,
             city: 'beijing', ssBaseMode: 'by_salary', ssBaseCustom: 0, hfBaseMode: 'by_salary', hfBaseCustom: 0, hfRate: 12, specialDeductions: 0,
-            customCityData: { ssMin: 4000, ssMax: 30000, hfMin: 2500, hfMax: 30000, rates: { pension: 8, medical: 2, unemployment: 0.5 } }
+            customCityData: { ssMin: 4000, ssMax: 30000, hfMin: 2500, hfMax: 30000, rates: { pension: 0.08, medical: 0.02, unemployment: 0.005 } }
         });
         recalculateMetrics();
         renderSettingsFromState();
@@ -707,10 +712,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const { pension, medical, unemployment } = cityConfig.rates;
         const ssDeduction = ssBase * (pension + medical + unemployment);
         const hfDeduction = hfBase * (settings.hfRate / 100);
-        const totalDeductions = ssDeduction + hfDeduction;
-
+        
         const taxThreshold = 5000;
-        const taxableIncomeMonthly = settings.monthlySalary - totalDeductions - taxThreshold - settings.specialDeductions;
+        const taxableIncomeMonthly = settings.monthlySalary - ssDeduction - hfDeduction - taxThreshold - settings.specialDeductions;
         let tax = 0;
         if (taxableIncomeMonthly > 0) {
             const taxableIncomeAnnual = taxableIncomeMonthly * 12;
@@ -721,11 +725,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const afterTaxSalary = settings.monthlySalary - totalDeductions - tax;
+        const afterTaxSalary = settings.monthlySalary - ssDeduction - hfDeduction - tax;
 
         dom.afterTaxDisplay.innerHTML = `
             <p class="text-sm text-gray-300">预计税后月薪: <span class="font-bold text-lg text-amber-400">¥ ${afterTaxSalary.toFixed(2)}</span></p>
-            <p class="text-xs text-gray-500 mt-1">五险一金: ¥${totalDeductions.toFixed(2)} | 专项扣除: ¥${settings.specialDeductions.toFixed(2)} | 个税: ¥${tax.toFixed(2)}</p>
+            <div class="text-xs text-gray-500 mt-1 flex flex-wrap justify-center gap-x-2">
+                <span>社保: ¥${ssDeduction.toFixed(2)}</span>
+                <span>公积金: ¥${hfDeduction.toFixed(2)}</span>
+                <span>专项扣除: ¥${settings.specialDeductions.toFixed(2)}</span>
+                <span>个税: ¥${tax.toFixed(2)}</span>
+            </div>
         `;
 
         return { afterTaxSalary };
@@ -817,9 +826,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.customSsMax.value = settings.customCityData.ssMax;
             dom.customHfMin.value = settings.customCityData.hfMin;
             dom.customHfMax.value = settings.customCityData.hfMax;
-            dom.customRatePension.value = settings.customCityData.rates.pension;
-            dom.customRateMedical.value = settings.customCityData.rates.medical;
-            dom.customRateUnemployment.value = settings.customCityData.rates.unemployment;
+            // BUG FIX: Multiply by 100 for display
+            dom.customRatePension.value = settings.customCityData.rates.pension * 100;
+            dom.customRateMedical.value = settings.customCityData.rates.medical * 100;
+            dom.customRateUnemployment.value = settings.customCityData.rates.unemployment * 100;
         }
 
         dom.expenseList.innerHTML = '';
@@ -904,6 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Tax settings event listeners
         dom.toggleTaxSettingsBtn.addEventListener('click', () => dom.taxSettingsPanel.classList.toggle('open'));
+        dom.toggleCustomRatesBtn.addEventListener('click', () => dom.customRatesWrapper.classList.toggle('hidden'));
         dom.ssBaseMode.addEventListener('change', updateSettingsUIVisibility);
         dom.hfBaseMode.addEventListener('change', updateSettingsUIVisibility);
         dom.citySelect.addEventListener('change', (e) => {
